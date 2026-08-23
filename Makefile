@@ -7,7 +7,7 @@ GOFUMPT := $(BIN_DIR)/gofumpt
 GOFUMPT_ABS := $(abspath $(GOFUMPT))
 export PATH := $(abspath $(BIN_DIR)):$(PATH)
 
-.PHONY: lint lint-go lint-ts test test-go tools \
+.PHONY: lint lint-go lint-ts test test-go tools test-mcp-conformance \
 	dev-up dev-down dev-reset kind-up kind-down generate \
 	e2e-smoke build-images helm-install migrate-up migrate-down
 
@@ -35,6 +35,9 @@ lint-go: tools
 	done
 
 lint-ts: node_modules
+
+test-mcp-conformance:
+	cd e2e/mcp && node conformance.mjs
 	pnpm exec eslint .
 	pnpm exec prettier --check .
 
