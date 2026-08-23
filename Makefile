@@ -52,6 +52,13 @@ test-baidu-live:
 	cd providers && go test ./baidu-live-test/ -v -count=1
 
 
+verify-security-runtime:
+	cd e2e/security && bash verify-runtime.sh $(APP_ID) $(NS)
+
+verify-security-data:
+	cd e2e/security && bash verify-data.sh $(APP_ID) $(NS)
+
+
 poc-all:
 	@set -e; for script in security/poc/p0-*.sh; do \
 		echo "== $$script"; \
