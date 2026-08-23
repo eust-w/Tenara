@@ -103,8 +103,10 @@ func runAnonymousSecurityEvent(t *testing.T, ts *httptest.Server, pool *pgxpool.
 		t.Fatal(scanErr)
 	}
 	code, _ := authedJSON(t, http.MethodPost, ts.URL+"/v1/members", "",
-		map[string]string{"email": fmt.Sprintf("anon-%d@test.tenara", timeNowUnix()),
-			"role": "member"})
+		map[string]string{
+			"email": fmt.Sprintf("anon-%d@test.tenara", timeNowUnix()),
+			"role":  "member",
+		})
 	if code != http.StatusUnauthorized {
 		t.Fatalf("anonymous = %d, want 401", code)
 	}

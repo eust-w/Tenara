@@ -142,17 +142,20 @@ func (s *Store) LoadIdempotentResponse(
 		key, orgID).Scan(&storedHash, &status, &body)
 	if scanErr != nil {
 		return 0, nil, &idemHTTPError{
-			code: "INTERNAL", detail: "idempotency lookup failed", status: http.StatusInternalServerError}
+			code: "INTERNAL", detail: "idempotency lookup failed", status: http.StatusInternalServerError,
+		}
 	}
 	if storedHash != requestHash {
 		return 0, nil, &idemHTTPError{
 			code: "IDEMPOTENCY_CONFLICT", status: http.StatusUnprocessableEntity,
-			detail: "key already used with a different payload"}
+			detail: "key already used with a different payload",
+		}
 	}
 	if status == nil {
 		return 0, nil, &idemHTTPError{
 			code: "IDEMPOTENCY_IN_FLIGHT", status: http.StatusConflict,
-			detail: "original request still running"}
+			detail: "original request still running",
+		}
 	}
 	return *status, body, nil
 }
