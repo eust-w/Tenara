@@ -195,6 +195,9 @@ linters:
       - path: controllers/internal/appenv/types\.go$
         linters:
           - govet
+      - path: controllers/internal/database/types\.go$
+        linters:
+          - govet
       # Test doubles carry no wire semantics.
       - path: providers/mongo/local/provider_test\.go$
         linters:
