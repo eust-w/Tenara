@@ -60,7 +60,7 @@ type SecretProvider interface {
 // references never escape to callers (R3).
 type RegistryProvider interface {
 	ResolveDigest(ctx context.Context, repo, tagOrSHA string) (string, error)
-	CheckSignature(ctx context.Context, digest string) (bool, error)
+	CheckSignature(ctx context.Context, repo, digest string) (bool, error)
 	DeleteImage(ctx context.Context, repo, digest string) error
 	HealthReporter
 }
