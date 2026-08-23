@@ -9,3 +9,5 @@ coverage
 # third-party / generated artifacts
 deploy/kind/calico.yaml
 sdk/ts/src/generated/
+deploy/helm/tenara-platform/templates/
+deploy/helm/build-digests.yaml
