@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"tenara/control-plane/internal/apps"
+	"tenara/control-plane/internal/kms"
 	"tenara/control-plane/internal/pgstore"
 )
 
@@ -44,7 +45,11 @@ func newTestServer(t *testing.T) *httptest.Server {
 	svc := NewService(NewStore(pool), NewTokenManager("test-secret-key-32-bytes-long!!"), "http://localhost:8080")
 	r := chi.NewRouter()
 	svc.Mount(r)
-	appsH := apps.New(pool, NewBridge(svc), "127.0.0.1.nip.io")
+	testKMS, kmsStubErr := kms.NewStub(strings.Repeat("ab", 32))
+	if kmsStubErr != nil {
+		t.Fatal(kmsStubErr)
+	}
+	appsH := apps.New(pool, NewBridge(svc), "127.0.0.1.nip.io", testKMS)
 	appsH.Mount(r)
 	return httptest.NewServer(r)
 }

@@ -41,6 +41,10 @@ lint-ts: node_modules
 lint-contract:
 	pnpm exec spectral lint api/openapi.yaml
 
+## test-secrets: secrets package acceptance (plan todo 19)
+test-secrets:
+	cd control-plane && go test ./internal/secrets/... -v
+
 ## test: unit/test gate across all modules
 test: test-go
 	pnpm -r --if-present run test

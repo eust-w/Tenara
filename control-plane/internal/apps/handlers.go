@@ -12,8 +12,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"tenara/control-plane/internal/appspec"
+	"tenara/control-plane/internal/kms"
 	"tenara/control-plane/internal/orchestrator/plan"
 	"tenara/control-plane/internal/rbac"
+	"tenara/control-plane/internal/secrets"
 )
 
 // Gate is the middleware contract injected from the auth package.
@@ -27,12 +29,16 @@ type Gate interface {
 
 type Handlers struct {
 	store      *Store
+	secrets    *secrets.Service
 	gate       Gate
 	baseDomain string
 }
 
-func New(pool *pgxpool.Pool, gate Gate, baseDomain string) *Handlers {
-	return &Handlers{store: NewStore(pool), gate: gate, baseDomain: baseDomain}
+func New(
+	pool *pgxpool.Pool, gate Gate, baseDomain string, kmsStub *kms.Stub,
+) *Handlers {
+	return &Handlers{store: NewStore(pool), gate: gate,
+		baseDomain: baseDomain, secrets: secrets.New(pool, kmsStub)}
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
@@ -93,6 +99,14 @@ func (h *Handlers) Mount(r chi.Router) {
 	r.Post("/v1/apps/{appId}/deployments", h.gate.Authenticated(
 		h.gate.RequireCap(rbac.CapAppDeploy,
 			h.gate.Idem(h.gate.Audited("app.deploy", h.handleDeploy)))))
+	r.Put("/v1/apps/{appId}/env", h.gate.Authenticated(
+		h.gate.RequireCap(rbac.CapSecretWrite,
+			h.gate.Idem(h.gate.Audited("secret.set", h.handlePutEnv)))))
+	r.Get("/v1/apps/{appId}/secrets", h.gate.RequireCap(rbac.CapAppRead,
+		h.gate.Authenticated(h.handleListSecrets)))
+	r.Post("/v1/apps/{appId}/secrets/reveal", h.gate.Authenticated(
+		h.gate.RequireCap(rbac.CapSecretReveal,
+			h.handleRevealSecret)))
 }
 
 func (h *Handlers) orgOrUnauthorized(w http.ResponseWriter, r *http.Request) (string, bool) {

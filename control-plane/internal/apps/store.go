@@ -376,3 +376,27 @@ func (s *Store) ApprovePlan(ctx context.Context, orgID, appID, planID string) (s
 	}
 	return depID, nil
 }
+
+// AuditRow is a generic audit_logs insert used by custom-result flows
+// (e.g. secret.revealed) outside the standard audited middleware.
+type AuditRow struct {
+	ActorType   string
+	ActorID     string
+	Agent       string
+	WorkspaceID string
+	Action      string
+	SourceIP    string
+	RequestID   string
+	Result      string
+}
+
+func (s *Store) InsertAuditRow(ctx context.Context, e AuditRow) error {
+	_, execErr := s.pool.Exec(ctx,
+		`INSERT INTO audit_logs
+		 (actor_type, actor_id, agent, workspace_id, action, source_ip, request_id, result)
+		 VALUES ($1, NULLIF($2,'')::uuid, NULLIF($3,''), NULLIF($4,'')::uuid,
+		         $5, NULLIF($6,'')::inet, NULLIF($7,''), $8)`,
+		e.ActorType, e.ActorID, e.Agent, e.WorkspaceID,
+		e.Action, e.SourceIP, e.RequestID, e.Result)
+	return execErr
+}
