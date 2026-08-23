@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
+	"tenara/control-plane/internal/auth"
 	"tenara/control-plane/internal/config"
 	"tenara/control-plane/internal/httpapi"
 	"tenara/control-plane/internal/httpx"
@@ -54,6 +56,14 @@ func main() {
 		}
 		w.WriteHeader(http.StatusOK)
 	})
+
+	if adminEmail := os.Getenv("ADMIN_EMAIL"); adminEmail != "" {
+		if bootErr := auth.NewStore(pool).EnsurePlatformAdmin(ctx, adminEmail); bootErr != nil {
+			log.Error("platform admin bootstrap failed", zap.Error(bootErr))
+		} else {
+			log.Info("platform admin ensured", zap.String("email", adminEmail))
+		}
+	}
 
 	router.NotFound(httpapi.Handler().ServeHTTP)
 

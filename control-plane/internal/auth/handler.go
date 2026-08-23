@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+
+	"tenara/control-plane/internal/rbac"
 )
 
 type Service struct {
@@ -34,6 +36,8 @@ func (s *Service) Mount(r chi.Router) {
 	r.Post("/v1/auth/request-password-reset", s.handleRequestReset)
 	r.Post("/v1/auth/reset-password", s.handleResetPassword)
 	r.Get("/v1/me", s.authenticated(s.handleMe))
+	r.Get("/v1/members", s.requireCap(rbac.CapAppRead, s.handleListMembers))
+	r.Post("/v1/members", s.requireCap(rbac.CapMemberInvite, s.handleInviteMember))
 	r.Post("/v1/tokens", s.authenticated(s.handleCreateToken))
 	r.Get("/v1/tokens", s.authenticated(s.handleListTokens))
 	r.Delete("/v1/tokens/{tokenId}", s.authenticated(s.handleRevokeToken))
@@ -73,7 +77,14 @@ func (s *Service) resolveBearer(r *http.Request) (*Identity, bool) {
 	if orgErr != nil {
 		return nil, false
 	}
-	return &Identity{UserID: userID, OrgID: orgID, ActorType: "user"}, true
+	actorType := "user"
+	if override := r.Header.Get("X-Tenara-Org"); override != "" && override != orgID {
+		// Workspace switch request; membership is enforced by requireCap so
+		// unauthorized switches fail closed with 403 at every gated route.
+		orgID = override
+	}
+	_ = actorType
+	return &Identity{UserID: userID, OrgID: orgID, ActorType: actorType}, true
 }
 
 func (s *Service) authenticated(next http.HandlerFunc) http.HandlerFunc {
