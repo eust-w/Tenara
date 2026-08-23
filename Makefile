@@ -7,7 +7,7 @@ GOFUMPT := $(BIN_DIR)/gofumpt
 GOFUMPT_ABS := $(abspath $(GOFUMPT))
 export PATH := $(abspath $(BIN_DIR)):$(PATH)
 
-.PHONY: lint lint-go lint-ts test test-go tools test-mcp-conformance observability-up \
+.PHONY: lint lint-go lint-ts test test-go tools test-mcp-conformance observability-up test-baidu-live \
 	dev-up dev-down dev-reset kind-up kind-down generate \
 	e2e-smoke build-images helm-install migrate-up migrate-down
 
@@ -47,6 +47,10 @@ observability-up:
 	helm repo update >/dev/null
 	helm upgrade --install observability-kps prometheus-community/kube-prometheus-stack -n observability --create-namespace -f deploy/observability/values-kube-prometheus-stack.yaml
 	helm upgrade --install observability-loki grafana/loki-stack -n observability -f deploy/observability/values-loki-stack.yaml
+
+test-baidu-live:
+	cd providers && go test ./baidu-live-test/ -v -count=1
+
 
 lint-contract:
 	pnpm exec spectral lint api/openapi.yaml
