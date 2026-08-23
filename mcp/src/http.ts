@@ -5,6 +5,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
+import { TenaraClient } from "@tenara/sdk";
+
+import { registerAllTools, type AdminGate } from "./registerTools.ts";
+
 type PlatformFetch = (
   url: string,
   init?: { headers?: Record<string, string> },
@@ -18,6 +22,9 @@ export interface GatewayDeps {
   allowedHosts: string[];
   allowedOrigins: string[];
   fetchImpl?: PlatformFetch;
+  client?: TenaraClient;
+  adminGate?: AdminGate;
+  token?: string;
 }
 
 // ---- pure guards (DNS-rebinding defence, §53.1) ----
@@ -82,11 +89,19 @@ async function validateToken(deps: GatewayDeps, req: IncomingMessage): Promise<b
 
 // ---- per-request server factory (never a shared singleton, §53.1) ----
 
-export function buildServer(): McpServer {
+// Per-request factory (§53.1): a fresh server sharing the common registry.
+export function buildServer(deps: GatewayDeps): McpServer {
   const server = new McpServer({ name: "tenara-mcp", version: "0.1.0" });
-  server.registerTool("ping", { description: "liveness probe tool" }, async () => ({
-    content: [{ type: "text", text: "pong" }],
-  }));
+  registerAllTools(server, {
+    client:
+      deps.client ??
+      new TenaraClient({
+        baseURL: deps.platformURL,
+        token: deps.token ?? "",
+      }),
+    adminGate: deps.adminGate ?? { capabilityOf: async () => true },
+    token: deps.token ?? "",
+  });
   return server;
 }
 
@@ -141,7 +156,7 @@ async function handleMcpPost(
   // Stateless mode: omitting sessionIdGenerator pairs with the per-request
   // factory so no session state survives between requests.
   const transport = new StreamableHTTPServerTransport({});
-  const server = buildServer();
+  const server = buildServer(deps);
   await server.connect(transport as Parameters<typeof server.connect>[0]);
   await transport.handleRequest(req, res, parsed);
 }

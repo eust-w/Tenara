@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/"
+    "test": "node --test test/client.test.ts test/http.test.ts test/tools.test.ts test/tools_admin_test.ts test/stdio.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
@@ -15,5 +15,11 @@
     "@modelcontextprotocol/sdk": "1.30.0",
     "@tenara/sdk": "workspace:*",
     "zod": "^3.25.76"
-  }
+  },
+  "bin": {
+    "tenara-mcp": "./src/stdio.ts"
+  },
+  "files": [
+    "src"
+  ]
 }
