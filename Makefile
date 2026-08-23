@@ -35,11 +35,11 @@ lint-go: tools
 	done
 
 lint-ts: node_modules
+	pnpm exec eslint .
+	pnpm exec prettier --check .
 
 test-mcp-conformance:
 	cd e2e/mcp && node conformance.mjs
-	pnpm exec eslint .
-	pnpm exec prettier --check .
 
 lint-contract:
 	pnpm exec spectral lint api/openapi.yaml

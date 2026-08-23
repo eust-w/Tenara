@@ -46,8 +46,8 @@ stdio 形态与远程共享同一工具注册表;`initialize` → `tools/list` �
 
 ## 工具集速览
 
-| 分组   | 工具                                                                                                     |
-| ------ | -------------------------------------------------------------------------------------------------------- |
-| app.*  | create / analyze / plan / deploy / status / logs / restart / rollback / delete / set_env                   |
-| data   | database.create · domain.bind                                                                             |
+| 分组   | 工具                                                                                                        |
+| ------ | ----------------------------------------------------------------------------------------------------------- |
+| app.*  | create / analyze / plan / deploy / status / logs / restart / rollback / delete / set_env                    |
+| data   | database.create · domain.bind                                                                               |
 | admin* | user.list · user.suspend · app.list · app.stop · quota.set · cluster.health · security.events(需平台管理员) |
