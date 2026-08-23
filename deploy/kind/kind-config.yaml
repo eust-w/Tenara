@@ -1,0 +1,51 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: tenara
+networking:
+  disableDefaultCNI: true
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+  - role: worker
+    labels:
+      tenara.io/role: management
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          taints:
+            - key: tenara.io/role
+              value: management
+              effect: NoSchedule
+  - role: worker
+    labels:
+      tenara.io/role: build
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          taints:
+            - key: tenara.io/role
+              value: build
+              effect: NoSchedule
+  - role: worker
+    labels:
+      tenara.io/role: tenant
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          taints:
+            - key: tenara.io/role
+              value: tenant
+              effect: NoSchedule
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5000"]
+      endpoint = ["http://host.docker.internal:5000"]

@@ -48,9 +48,11 @@ dev-reset:
 	docker compose -f deploy/docker-compose.yml down -v
 	docker compose -f deploy/docker-compose.yml up -d --wait
 kind-up:
-	@echo "kind-up: not wired yet (plan todo 3)"; exit 0
+	kind get clusters 2>/dev/null | grep -qx tenara || kind create cluster --config deploy/kind/kind-config.yaml
+	kubectl apply -f deploy/kind/calico.yaml
+	kubectl -n kube-system rollout status ds/calico-node --timeout=300s
 kind-down:
-	@echo "kind-down: not wired yet (plan todo 3)"; exit 0
+	kind delete cluster --name tenara || true
 generate:
 	@echo "generate: not wired yet (plan todo 5)"; exit 0
 e2e-smoke:
