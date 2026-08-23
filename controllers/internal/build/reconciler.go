@@ -43,9 +43,13 @@ func (r *Reconciler) reconcilePhase(ctx context.Context, b *Build) (reconcile.Re
 	case PhaseCreated, PhaseCloning, PhaseBuilding, PhaseScanning, PhaseSigning:
 		// Actual work runs in pod init containers; the controller only polls
 		// for the next phase transition written by the pod itself.
+		if b.Status.Phase != PhaseCreated && b.Status.Phase != PhaseCloning {
+			DeleteEphemeralTokenSecret(ctx, r.Client, b.Namespace, b.Name)
+		}
 		return ctrl.Result{RequeueAfter: 30 * 1000000000}, nil
 
 	case PhasePushed, PhaseFailed:
+		DeleteEphemeralTokenSecret(ctx, r.Client, b.Namespace, b.Name)
 		return ctrl.Result{}, nil
 
 	default:

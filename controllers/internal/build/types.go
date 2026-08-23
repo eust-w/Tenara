@@ -8,6 +8,11 @@ import (
 
 var Scheme = runtime.NewScheme()
 
+const (
+	APIVersion = "tenara.io/v1"
+	KindBuild  = "Build"
+)
+
 type BuildPhase string
 
 const (
