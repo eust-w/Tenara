@@ -1,0 +1,18 @@
+# loki-stack with promtail carrying tenara workload labels into Loki.
+loki:
+  enabled: true
+  isDefault: true
+  service:
+    type: ClusterIP
+
+promtail:
+  enabled: true
+  config:
+    snippets:
+      extraRelabelConfigs:
+        - source_labels:
+            - __meta_kubernetes_pod_label_tenara_io_app_id
+          target_label: app_id
+        - source_labels:
+            - __meta_kubernetes_pod_label_tenara_io_env
+          target_label: env

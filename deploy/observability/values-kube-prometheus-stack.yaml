@@ -1,0 +1,31 @@
+# kube-prometheus-stack minimal subset (RB§31 §0.1).
+# ClusterIP only — the stack is reachable via port-forward exclusively.
+alertmanager:
+  enabled: false
+defaultRules:
+  create: false
+nodeExporter:
+  enabled: false
+kubeStateMetrics:
+  enabled: false
+
+grafana:
+  enabled: true
+  defaultDashboardsEnabled: false
+  service:
+    type: ClusterIP
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://observability-loki:3100
+
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    retention: 24h
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+  service:
+    type: ClusterIP

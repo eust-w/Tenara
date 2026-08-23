@@ -7,7 +7,7 @@ GOFUMPT := $(BIN_DIR)/gofumpt
 GOFUMPT_ABS := $(abspath $(GOFUMPT))
 export PATH := $(abspath $(BIN_DIR)):$(PATH)
 
-.PHONY: lint lint-go lint-ts test test-go tools test-mcp-conformance \
+.PHONY: lint lint-go lint-ts test test-go tools test-mcp-conformance observability-up \
 	dev-up dev-down dev-reset kind-up kind-down generate \
 	e2e-smoke build-images helm-install migrate-up migrate-down
 
@@ -40,6 +40,13 @@ lint-ts: node_modules
 
 test-mcp-conformance:
 	cd e2e/mcp && node conformance.mjs
+
+observability-up:
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+	helm repo add grafana https://grafana.github.io/helm-charts >/dev/null 2>&1 || true
+	helm repo update >/dev/null
+	helm upgrade --install observability-kps prometheus-community/kube-prometheus-stack -n observability --create-namespace -f deploy/observability/values-kube-prometheus-stack.yaml
+	helm upgrade --install observability-loki grafana/loki-stack -n observability -f deploy/observability/values-loki-stack.yaml
 
 lint-contract:
 	pnpm exec spectral lint api/openapi.yaml
