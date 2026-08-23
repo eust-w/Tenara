@@ -182,7 +182,12 @@ linters:
       - path: auth/domains_http_test\.go$
         linters:
           - govet
-      # Generated code never lints (oapi-codegen output).
+      # Analyzer offline fixture scanner: local-trusted walk over user-provided
+      # repo path; FileFact mirrors the stage document layout.
+      - path: internal/facts/facts\.go$
+        linters:
+          - govet
+          - gosec
       # Generated code never lints (oapi-codegen output).
       - path: \.gen\.go$
         linters:

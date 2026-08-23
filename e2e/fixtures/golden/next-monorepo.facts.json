@@ -1,0 +1,60 @@
+{
+  "schema": "facts.v1",
+  "root": "e2e/fixtures/repos/next-monorepo",
+  "files": [
+    {
+      "path": "e2e/fixtures/repos/next-monorepo/.env.example",
+      "kind": "env-example",
+      "sha256": "f2c7a12f3d7a",
+      "lines": 1
+    },
+    {
+      "path": "e2e/fixtures/repos/next-monorepo/apps/web/next.config.mjs",
+      "kind": "next-config",
+      "sha256": "450f0af4f4c1",
+      "lines": 1
+    },
+    {
+      "path": "e2e/fixtures/repos/next-monorepo/apps/web/package.json",
+      "kind": "package-json",
+      "sha256": "514d6ada3cb6",
+      "lines": 6,
+      "top_keys": [
+        "dependencies",
+        "name"
+      ]
+    },
+    {
+      "path": "e2e/fixtures/repos/next-monorepo/next.config.mjs",
+      "kind": "next-config",
+      "sha256": "450f0af4f4c1",
+      "lines": 1
+    },
+    {
+      "path": "e2e/fixtures/repos/next-monorepo/package.json",
+      "kind": "package-json",
+      "sha256": "e192694170ec",
+      "lines": 5,
+      "top_keys": [
+        "name",
+        "private",
+        "workspaces"
+      ]
+    },
+    {
+      "path": "e2e/fixtures/repos/next-monorepo/pnpm-workspace.yaml",
+      "kind": "pnpm-workspace",
+      "sha256": "59d8c363d3ed",
+      "lines": 2
+    },
+    {
+      "path": "e2e/fixtures/repos/next-monorepo/turbo.json",
+      "kind": "turbo-config",
+      "sha256": "bb84e7c69322",
+      "lines": 5,
+      "top_keys": [
+        "tasks"
+      ]
+    }
+  ]
+}
