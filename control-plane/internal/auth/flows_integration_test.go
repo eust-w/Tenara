@@ -3,6 +3,7 @@ package auth
 import (
 	"bytes"
 	"context"
+	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -25,8 +26,11 @@ const (
 // uniqueIP derives a fresh per-run client IP so rate-limit windows never
 // collide between test executions.
 func uniqueIP() string {
-	n := uint64(timeNowUnix())
-	return fmt.Sprintf("10.%d.%d.%d", n%200+2, (n>>12)%250, (n>>20)%250)
+	b := make([]byte, 3)
+	if _, err := crand.Read(b); err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf("10.%d.%d.%d", b[0]%200+2, b[1], b[2])
 }
 
 func newTestServer(t *testing.T) *httptest.Server {
@@ -178,7 +182,7 @@ func runHappyFlow(t *testing.T, ts *httptest.Server) {
 }
 
 func runRateLimitCase(t *testing.T, ts *httptest.Server) {
-	xff := fmt.Sprintf("10.201.%d.%d", timeNowUnix()%250+2, timeNowUnix()/60%250)
+	xff := uniqueIP()
 	for i := range 6 { // window allows exactly 5; the 6th must be rejected
 		code := post(t, ts.URL+"/v1/auth/register", xff, map[string]string{
 			"email":    fmt.Sprintf("ratelimit-%d-%d@test.tenara", timeNowUnix(), i),
