@@ -166,20 +166,20 @@ linters:
       - path: orchestrator/plan/generator\.go$
         linters:
           - govet
-# Wire-DTO/handler-singleton/test structs: layout irrelevant.
+      # Wire-DTO/handler-singleton/test structs: layout irrelevant.
       - path: apps/domains\.go$
         linters:
           - govet
       - path: apps/handlers\.go$
         linters:
           - govet
-            - path: apps/deployments\\.go$
+      - path: apps/deployments\.go$
         linters:
           - govet
-      - path: apps/deployments_test\\.go$
+      - path: apps/deployments_test\.go$
         linters:
           - govet
-- path: auth/domains_http_test\.go$
+      - path: auth/domains_http_test\.go$
         linters:
           - govet
       # Generated code never lints (oapi-codegen output).

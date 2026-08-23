@@ -10,8 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type pgxpoolPool = pgxpool.Pool
-
 func TestRevisionPersistenceAndRollbackTarget(t *testing.T) {
 	store, pool, stamp := newAppsStore(t)
 	ctx := context.Background()
@@ -30,7 +28,7 @@ func TestRevisionPersistenceAndRollbackTarget(t *testing.T) {
 		runRollbackSecondNewest(t, store, ctx, orgA, appID, depID)
 	})
 	t.Run("single revision has no rollback target", func(t *testing.T) {
-		runSingleRevisionNoRollback(t, store, pool, ctx, orgA, appID, stamp)
+		runSingleRevisionNoRollback(t, store, pool, ctx, orgA, appID)
 	})
 	t.Run("missing digest rejected by schema constraint", func(t *testing.T) {
 		runMissingDigestRejected(t, store, pool, ctx, orgA, appID, depID)
@@ -46,7 +44,7 @@ func insertRunningDeployment(
 		t.Fatal(ensureErr)
 	}
 	var depID string
-	if scanErr := pool.QueryRow(context.Background(),
+	if scanErr := pool.QueryRow(ctx,
 		`INSERT INTO deployments (app_id, environment_id, state)
 		 SELECT $1, e.id, 'RUNNING' FROM environments e
 		 WHERE e.app_id = $1 AND e.name = $2
@@ -94,7 +92,7 @@ func runRollbackSecondNewest(
 
 func runSingleRevisionNoRollback(
 	t *testing.T, store *Store, pool *pgxpool.Pool,
-	ctx context.Context, orgA, appID string, stamp int64,
+	ctx context.Context, orgA, appID string,
 ) {
 	t.Helper()
 	var dep2 string
