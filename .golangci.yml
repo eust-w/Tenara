@@ -192,6 +192,9 @@ linters:
       - path: controllers/internal/build/types\.go$
         linters:
           - govet
+      - path: controllers/internal/appenv/types\.go$
+        linters:
+          - govet
       # Generated code never lints (oapi-codegen output).
       - path: \.gen\.go$
         linters:
