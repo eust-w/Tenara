@@ -199,6 +199,9 @@ linters:
       - path: providers/mongo/local/provider_test\.go$
         linters:
           - govet
+      - path: providers/storage/local/provider_test\.go$
+        linters:
+          - govet
       # Generated code never lints (oapi-codegen output).
       - path: \.gen\.go$
         linters:
