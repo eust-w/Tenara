@@ -64,6 +64,8 @@ linters:
       exclude-functions:
         # Writing an error to a broken client connection has nowhere to go.
         - (*encoding/json.Encoder).Encode
+        # Notification emails are fire-and-forget by contract.
+        - (tenara/control-plane/internal/auth.SMTPSender).SendVerification
 
     govet:
       enable-all: true
