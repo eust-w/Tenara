@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenara-control-plane
+  labels:
+    app.kubernetes.io/name: tenara-platform
+    app.kubernetes.io/component: control-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tenara-platform
+      app.kubernetes.io/component: control-plane
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tenara-platform
+        app.kubernetes.io/component: control-plane
+    spec:
+      {{- with .Values.scheduling }}
+      nodeSelector:
+        {{- toYaml .nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .tolerations | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: control-plane
+          image: "{{ .Values.image.repository }}/{{ .Values.controlPlane.imageName | default "control-plane" }}@{{ .Values.controlPlane.digest | required "control-plane digest is required (digest-only policy)" }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.controlPlane.port }}
+              name: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tenara-control-plane
+  labels:
+    app.kubernetes.io/name: tenara-platform
+spec:
+  selector:
+    app.kubernetes.io/name: tenara-platform
+    app.kubernetes.io/component: control-plane
+  ports:
+    - port: 80
+      targetPort: http

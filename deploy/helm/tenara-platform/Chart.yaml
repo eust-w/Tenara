@@ -1,0 +1,6 @@
+apiVersion: v2
+name: tenara-platform
+description: Tenara control plane and controllers (local-first deployment)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

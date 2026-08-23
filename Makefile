@@ -82,9 +82,12 @@ generate:
 e2e-smoke:
 	@echo "e2e-smoke: not wired yet (plan todo 7)"; exit 0
 build-images:
-	@echo "build-images: not wired yet (plan todo 6)"; exit 0
-helm-install:
-	@echo "helm-install: not wired yet (plan todo 6)"; exit 0
+	bash scripts/build-images.sh
+helm-install: 
+	helm upgrade --install tenara-platform deploy/helm/tenara-platform \
+		--namespace tenara-system --create-namespace \
+		-f deploy/helm/tenara-platform/values-dev.yaml \
+		-f deploy/helm/build-digests.yaml --wait --timeout 300s
 migrate-up:
 	@echo "migrate-up: not wired yet (plan todo 9)"; exit 0
 migrate-down:

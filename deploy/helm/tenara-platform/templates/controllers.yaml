@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenara-controllers
+  labels:
+    app.kubernetes.io/name: tenara-platform
+    app.kubernetes.io/component: controllers
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tenara-platform
+      app.kubernetes.io/component: controllers
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tenara-platform
+        app.kubernetes.io/component: controllers
+    spec:
+      {{- with .Values.scheduling }}
+      nodeSelector:
+        {{- toYaml .nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .tolerations | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: controllers
+          image: "{{ .Values.image.repository }}/{{ .Values.controllers.imageName | default "controllers" }}@{{ .Values.controllers.digest | required "controllers digest is required (digest-only policy)" }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi

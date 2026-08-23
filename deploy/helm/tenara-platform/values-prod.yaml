@@ -1,0 +1,3 @@
+# Production overrides placeholder (cloud credentials never live here).
+config:
+  logLevel: info

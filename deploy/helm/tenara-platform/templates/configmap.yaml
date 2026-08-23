@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenara-config
+  labels:
+    app.kubernetes.io/name: tenara-platform
+data:
+  base_domain: {{ .Values.config.baseDomain | default "127.0.0.1.nip.io" | quote }}

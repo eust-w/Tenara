@@ -1,0 +1,3 @@
+# Local development overrides (kind).
+config:
+  logLevel: debug
