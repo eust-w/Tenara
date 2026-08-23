@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	"tenara/analyzer/internal/facts"
+	"github.com/tenara/analyzer/internal/facts"
 )
 
 func main() {

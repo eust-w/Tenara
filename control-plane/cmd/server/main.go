@@ -2,14 +2,17 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/tenara/analyzer"
 	"go.uber.org/zap"
 
 	"tenara/control-plane/internal/auth"
@@ -66,6 +69,26 @@ func main() {
 			log.Info("platform admin ensured", zap.String("email", adminEmail))
 		}
 	}
+
+	router.Post("/v1/analyze", func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			RepoPath string `json:"repo_path"`
+		}
+		if decodeErr := json.NewDecoder(r.Body).Decode(&in); decodeErr != nil ||
+			strings.TrimSpace(in.RepoPath) == "" {
+			http.Error(w, "repo_path required", http.StatusBadRequest)
+			return
+		}
+		result, analyzeErr := analyzer.AnalyzeLocal(in.RepoPath, "127.0.0.1.nip.io")
+		if analyzeErr != nil {
+			http.Error(w, analyzeErr.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if _, writeErr := w.Write(result); writeErr != nil {
+			return
+		}
+	})
 
 	router.NotFound(httpapi.Handler().ServeHTTP)
 

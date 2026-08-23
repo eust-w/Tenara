@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"tenara/analyzer/internal/detectors"
+	"github.com/tenara/analyzer/internal/detectors"
 )
 
 var ErrUnsupportedStack = errors.New("unsupported stack")

@@ -1,3 +1,3 @@
-module tenara/analyzer
+module github.com/tenara/analyzer
 
 go 1.24

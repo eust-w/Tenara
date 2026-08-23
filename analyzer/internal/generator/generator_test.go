@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"tenara/analyzer/internal/detectors"
+	"github.com/tenara/analyzer/internal/detectors"
 )
 
 func TestMixedRepoGeneratesCorrectSpec(t *testing.T) {
