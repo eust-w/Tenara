@@ -93,6 +93,10 @@ helm-install:
 		-f deploy/helm/tenara-platform/values-dev.yaml \
 		-f deploy/helm/build-digests.yaml --wait --timeout 300s
 migrate-up:
-	@echo "migrate-up: not wired yet (plan todo 9)"; exit 0
-migrate-down:
-	@echo "migrate-down: not wired yet (plan todo 9)"; exit 0
+	GOBIN=$(abspath $(BIN_DIR)) go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.3
+	@if [ -n "$$(ls control-plane/internal/store/migrations/*.sql 2>/dev/null)" ]; then \
+		$(BIN_DIR)/migrate -path control-plane/internal/store/migrations -database "$(TENARA_DATABASE_URL)" up; \
+	else echo "no migrations yet"; fi
+migrate-new:
+	@test -n "$(name)" || (echo "usage: make migrate-new name=add_x"; exit 1)
+	$(BIN_DIR)/migrate create -ext sql -dir control-plane/internal/store/migrations -seq "$(name)"
