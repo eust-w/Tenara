@@ -56,6 +56,7 @@ func TestRollbackStopDeleteBranches(t *testing.T) {
 		{StateRunning, StateDeleting},
 		{StateDeleting, StateDeleted},
 		{StateDegraded, StateRollingBack},
+		{StateDegraded, StateStopped},
 		{StateFailed, StatePlanned},
 	}
 	for _, pair := range legal {

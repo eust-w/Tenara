@@ -41,7 +41,10 @@ var allowedTransitions = map[string]map[string]bool{
 		StateVerifying: true, StateDegraded: true,
 		StateRollingBack: true, StateStopped: true, StateDeleting: true,
 	},
-	StateDegraded:    {StateVerifying: true, StateRollingBack: true, StateFailed: true, StateDeleting: true},
+	StateDegraded: {
+		StateVerifying: true, StateRollingBack: true,
+		StateStopped: true, StateFailed: true, StateDeleting: true,
+	},
 	StateFailed:      {StatePlanned: true, StateDeleting: true},
 	StateRollingBack: {StateVerifying: true, StateFailed: true},
 	StateStopped:     {StatePlanned: true, StateDeleting: true},
