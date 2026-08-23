@@ -11,3 +11,4 @@ deploy/kind/calico.yaml
 sdk/ts/src/generated/
 deploy/helm/tenara-platform/templates/
 deploy/helm/build-digests.yaml
+e2e/fixtures/
