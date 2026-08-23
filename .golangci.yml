@@ -161,6 +161,11 @@ linters:
       - path: internal/httpapi/
         linters:
           - revive
+      # Plan response DTOs mirror the OpenAPI wire contract; Go memory
+      # layout is irrelevant and time.Time internals make this unfixable.
+      - path: orchestrator/plan/generator\.go$
+        linters:
+          - govet
       # Generated code never lints (oapi-codegen output).
       - path: \.gen\.go$
         linters:

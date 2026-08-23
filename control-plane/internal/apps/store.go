@@ -5,10 +5,12 @@ package apps
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -267,4 +269,110 @@ func (s *Store) UpdateSpec(ctx context.Context, orgID, appID string, raw []byte)
 		return ErrNotFound
 	}
 	return nil
+}
+
+// ErrPlanExpired marks an approval attempt on a past-TTL plan.
+var ErrPlanExpired = errors.New("plan expired")
+
+// EnsureEnvironment returns the environment row id for (app, env),
+// creating it on first use.
+func (s *Store) EnsureEnvironment(ctx context.Context, orgID, appID, envName string) (string, error) {
+	if _, getAppErr := s.GetApp(ctx, orgID, appID); getAppErr != nil {
+		return "", getAppErr
+	}
+	if !envNameRE.MatchString(envName) {
+		return "", fmt.Errorf("%w: invalid environment name", ErrConflict)
+	}
+	shortID := strings.SplitN(appID, "-", 2)[0]
+	namespace := fmt.Sprintf("app-%s-%s", shortID, envName)
+	var envID string
+	upsertErr := s.pool.QueryRow(ctx,
+		`INSERT INTO environments (app_id, name, namespace_name)
+		 VALUES ($1, $2, $3)
+		 ON CONFLICT (app_id, name) DO UPDATE SET name = EXCLUDED.name
+		 RETURNING id`,
+		appID, envName, namespace).Scan(&envID)
+	return envID, upsertErr
+}
+
+// SaveAwaitingPlan persists a deployment row in AWAITING_APPROVAL carrying
+// the rendered plan snapshot; the generated plan_id doubles as public handle.
+func (s *Store) SaveAwaitingPlan(
+	ctx context.Context, orgID, appID, envName string, planSnapshot []byte,
+) (deploymentID, planID string, err error) {
+	envID, ensureErr := s.EnsureEnvironment(ctx, orgID, appID, envName)
+	if ensureErr != nil {
+		return "", "", ensureErr
+	}
+	insertErr := s.pool.QueryRow(ctx,
+		`INSERT INTO deployments (app_id, environment_id, state, plan_id, plan_snapshot)
+		 VALUES ($1, $2, 'AWAITING_APPROVAL', gen_random_uuid(), $3)
+		 RETURNING id::text, plan_id::text`,
+		appID, envID, string(planSnapshot)).Scan(&deploymentID, &planID)
+	return deploymentID, planID, insertErr
+}
+
+type AppWithSpec struct {
+	App
+	SpecRaw []byte
+}
+
+// GetAppWithSpec additionally surfaces the stored manual override.
+func (s *Store) GetAppWithSpec(ctx context.Context, orgID, appID string) (AppWithSpec, error) {
+	if !validUUID(appID) {
+		return AppWithSpec{}, ErrNotFound
+	}
+	var out AppWithSpec
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, name, slug, created_at::text, COALESCE(current_spec::text,'')
+		 FROM applications WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`,
+		appID, orgID).
+		Scan(&out.ID, &out.Name, &out.Slug, &out.CreatedAt, &out.SpecRaw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AppWithSpec{}, ErrNotFound
+	}
+	return out, err
+}
+
+// ApprovePlan validates the caller-owned awaiting plan (expiry + state) and
+// transitions it to PLANNED.
+func (s *Store) ApprovePlan(ctx context.Context, orgID, appID, planID string) (string, error) {
+	if !validUUID(planID) {
+		return "", ErrNotFound
+	}
+	var (
+		depID    string
+		state    string
+		snapshot []byte
+	)
+	scanErr := s.pool.QueryRow(ctx,
+		`SELECT d.id::text, d.state, d.plan_snapshot::text
+		 FROM deployments d JOIN applications a ON a.id = d.app_id
+		 WHERE d.plan_id = $1 AND a.org_id = $2 AND a.id = $3`,
+		planID, orgID, appID).Scan(&depID, &state, &snapshot)
+	if errors.Is(scanErr, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if scanErr != nil {
+		return "", scanErr
+	}
+	var snap struct {
+		ExpiresAt time.Time `json:"expires_at"`
+	}
+	if parseErr := json.Unmarshal(snapshot, &snap); parseErr != nil {
+		return "", fmt.Errorf("%w: corrupt snapshot", ErrConflict)
+	}
+	if time.Now().After(snap.ExpiresAt) {
+		return "", ErrPlanExpired
+	}
+	if state != "AWAITING_APPROVAL" {
+		return "", fmt.Errorf("%w: plan already %s", ErrConflict, state)
+	}
+	if _, execErr := s.pool.Exec(ctx,
+		`UPDATE deployments SET state = 'PLANNED', updated_at = now()
+		 WHERE id = $1`,
+		depID); execErr != nil {
+		return "", execErr
+	}
+	return depID, nil
 }

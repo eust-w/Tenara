@@ -1,0 +1,9 @@
+{
+  "namespace_name": "app-12345678-production",
+  "services": [
+    {"name": "api", "resources": {"cpu_millicores": 500, "memory_megabytes": 512}},
+    {"name": "web", "resources": {"cpu_millicores": 250, "memory_megabytes": 256}}
+  ],
+  "database_name": "app_12345678",
+  "domain": "myshop.tenara.local"
+}

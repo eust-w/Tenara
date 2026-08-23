@@ -6,11 +6,13 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"tenara/control-plane/internal/appspec"
+	"tenara/control-plane/internal/orchestrator/plan"
 	"tenara/control-plane/internal/rbac"
 )
 
@@ -24,12 +26,13 @@ type Gate interface {
 }
 
 type Handlers struct {
-	store *Store
-	gate  Gate
+	store      *Store
+	gate       Gate
+	baseDomain string
 }
 
-func New(pool *pgxpool.Pool, gate Gate) *Handlers {
-	return &Handlers{store: NewStore(pool), gate: gate}
+func New(pool *pgxpool.Pool, gate Gate, baseDomain string) *Handlers {
+	return &Handlers{store: NewStore(pool), gate: gate, baseDomain: baseDomain}
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
@@ -85,6 +88,11 @@ func (h *Handlers) Mount(r chi.Router) {
 	r.Put("/v1/apps/{appId}/spec", h.gate.Authenticated(
 		h.gate.RequireCap(rbac.CapAppCreate,
 			h.gate.Idem(h.gate.Audited("app.spec.override", h.handlePutSpec)))))
+	r.Get("/v1/apps/{appId}/plan", h.gate.RequireCap(rbac.CapAppRead,
+		h.gate.Authenticated(h.handleGetPlan)))
+	r.Post("/v1/apps/{appId}/deployments", h.gate.Authenticated(
+		h.gate.RequireCap(rbac.CapAppDeploy,
+			h.gate.Idem(h.gate.Audited("app.deploy", h.handleDeploy)))))
 }
 
 func (h *Handlers) orgOrUnauthorized(w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -251,4 +259,85 @@ func (h *Handlers) handlePutSpec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handlers) handleGetPlan(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgOrUnauthorized(w, r)
+	if !ok {
+		return
+	}
+	appID := chi.URLParam(r, "appId")
+	appWithSpec, getErr := h.store.GetAppWithSpec(r.Context(), orgID, appID)
+	if getErr != nil {
+		mapWriteErr(w, getErr)
+		return
+	}
+	if len(appWithSpec.SpecRaw) == 0 {
+		writeProblem(w, http.StatusConflict, "SPEC_REQUIRED",
+			"analyze or override a spec first")
+		return
+	}
+	spec, parseErr := appspec.Parse(appWithSpec.SpecRaw)
+	if parseErr != nil {
+		writeProblem(w, http.StatusUnprocessableEntity, "INVALID_SPEC", parseErr.Error())
+		return
+	}
+	planOut, genErr := plan.Generate(plan.Input{
+		AppID:      appID,
+		Slug:       appWithSpec.Slug,
+		Env:        "production",
+		BaseDomain: h.baseDomain,
+		Spec:       spec,
+		Now:        time.Now(),
+		TTL:        24 * time.Hour,
+	})
+	if genErr != nil {
+		writeProblem(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", genErr.Error())
+		return
+	}
+	snapshot, marshalErr := json.Marshal(planOut)
+	if marshalErr != nil {
+		writeProblem(w, http.StatusInternalServerError, "INTERNAL", "snapshot failed")
+		return
+	}
+	_, planID, saveErr := h.store.SaveAwaitingPlan(
+		r.Context(), orgID, appID, "production", snapshot)
+	if saveErr != nil {
+		mapWriteErr(w, saveErr)
+		return
+	}
+	planOut.PlanID = planID
+	writeJSON(w, http.StatusOK, planOut)
+}
+
+func (h *Handlers) handleDeploy(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgOrUnauthorized(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		PlanID string `json:"plan_id"`
+	}
+	if !decodeInto(r, &in) || in.PlanID == "" {
+		writeProblem(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "plan_id required")
+		return
+	}
+	depID, approveErr := h.store.ApprovePlan(
+		r.Context(), orgID, chi.URLParam(r, "appId"), in.PlanID)
+	switch {
+	case approveErr == nil:
+	case errors.Is(approveErr, ErrNotFound):
+		writeProblem(w, http.StatusNotFound, "NOT_FOUND", "unknown plan")
+		return
+	case errors.Is(approveErr, ErrPlanExpired):
+		writeProblem(w, http.StatusGone, "PLAN_EXPIRED", "plan approval window elapsed")
+		return
+	case errors.Is(approveErr, ErrConflict):
+		writeProblem(w, http.StatusConflict, "CONFLICT", approveErr.Error())
+		return
+	default:
+		writeProblem(w, http.StatusInternalServerError, "INTERNAL", "approval failed")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"id": depID, "state": "PLANNED"})
 }

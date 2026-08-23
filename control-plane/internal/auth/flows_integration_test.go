@@ -44,7 +44,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	svc := NewService(NewStore(pool), NewTokenManager("test-secret-key-32-bytes-long!!"), "http://localhost:8080")
 	r := chi.NewRouter()
 	svc.Mount(r)
-	appsH := apps.New(pool, NewBridge(svc))
+	appsH := apps.New(pool, NewBridge(svc), "127.0.0.1.nip.io")
 	appsH.Mount(r)
 	return httptest.NewServer(r)
 }
