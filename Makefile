@@ -7,7 +7,7 @@ GOFUMPT := $(BIN_DIR)/gofumpt
 GOFUMPT_ABS := $(abspath $(GOFUMPT))
 export PATH := $(abspath $(BIN_DIR)):$(PATH)
 
-.PHONY: lint lint-go lint-ts test test-go tools test-mcp-conformance observability-up test-baidu-live \
+.PHONY: lint lint-go lint-ts test test-go tools test-mcp-conformance observability-up test-baidu-live poc-all \
 	dev-up dev-down dev-reset kind-up kind-down generate \
 	e2e-smoke build-images helm-install migrate-up migrate-down
 
@@ -50,6 +50,13 @@ observability-up:
 
 test-baidu-live:
 	cd providers && go test ./baidu-live-test/ -v -count=1
+
+
+poc-all:
+	@set -e; for script in security/poc/p0-*.sh; do \
+		echo "== $$script"; \
+		bash "$$script" || echo "FAIL: $$script"; \
+	done
 
 
 lint-contract:
