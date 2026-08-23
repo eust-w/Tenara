@@ -48,7 +48,7 @@ var allowedTransitions = map[string]map[string]bool{
 	StateFailed:      {StatePlanned: true, StateDeleting: true},
 	StateRollingBack: {StateVerifying: true, StateFailed: true},
 	StateStopped:     {StatePlanned: true, StateDeleting: true},
-	StateDeleting:    {StateDeleted: true},
+	StateDeleting:    {StateDeleted: true, StatePlanned: true},
 }
 
 // CanTransition reports whether the move is table-approved.
