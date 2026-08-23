@@ -24,6 +24,7 @@ type IsolationLevel string
 
 const (
 	IsolationShared    IsolationLevel = "shared"
+	IsolationIsolated  IsolationLevel = "isolated"
 	IsolationDedicated IsolationLevel = "dedicated"
 )
 
