@@ -198,6 +198,10 @@ linters:
       - path: controllers/internal/database/types\.go$
         linters:
           - govet
+      # Verification report mirrors artifact JSON key ordering.
+      - path: internal/verify/report\.go$
+        linters:
+          - govet
       # Test doubles carry no wire semantics.
       - path: providers/mongo/local/provider_test\.go$
         linters:
