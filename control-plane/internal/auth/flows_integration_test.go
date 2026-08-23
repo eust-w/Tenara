@@ -137,6 +137,7 @@ func TestEmailAuthFlows(t *testing.T) {
 		}
 	})
 }
+
 func runHappyFlow(t *testing.T, ts *httptest.Server) {
 	email := fmt.Sprintf("happy-%d@test.tenara", timeNowUnix())
 	xff := uniqueIP()
@@ -225,6 +226,7 @@ func latestResetToken(t *testing.T) string {
 	t.Fatal("no reset link found in mailhog")
 	return ""
 }
+
 func runFailureCases(ts *httptest.Server, t *testing.T) {
 	cases := []struct {
 		setup func(t *testing.T) (email, password string)
