@@ -1,0 +1,7 @@
+# oapi-codegen config for the Tenara control plane (plan tenara-agent-paas todo 5).
+# Output path is resolved relative to this file.
+package: gen
+generate:
+  chi-server: true
+  models: true
+output: gen.gen.go

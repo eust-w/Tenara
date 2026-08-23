@@ -1,0 +1,1226 @@
+openapi: 3.0.3
+info:
+  title: Tenara Platform API
+  version: 0.1.0
+  description: >
+    Single API surface shared by Web Console, CLI and MCP.
+    Contract only exposes platform-level concepts; infrastructure primitives
+    (namespaces, pods, services, ingress, network policies) are never visible.
+servers:
+  - url: http://localhost:8080
+    description: local control plane
+tags:
+  - name: auth
+  - name: apps
+  - name: analyze
+  - name: plan
+  - name: deployments
+  - name: domains
+  - name: databases
+  - name: secrets
+  - name: tokens
+  - name: members
+  - name: audit
+  - name: admin
+security:
+  - bearerAuth: []
+
+paths:
+  /healthz:
+    get:
+      tags: [auth]
+      summary: liveness probe (unauthenticated)
+      security: []
+      responses:
+        "200":
+          description: ok
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /readyz:
+    get:
+      tags: [auth]
+      summary: readiness probe with dependency checks (unauthenticated)
+      security: []
+      responses:
+        "200":
+          description: ready
+        "503":
+          $ref: "#/components/responses/Problem"
+
+  /v1/me:
+    get:
+      operationId: GetV1Me
+      tags: [auth]
+      summary: current user and workspace context
+      responses:
+        "200":
+          description: current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401":
+          $ref: "#/components/responses/Problem"
+
+  /v1/auth/register:
+    post:
+      operationId: PostV1AuthRegister
+      tags: [auth]
+      summary: register with email verification flow
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterInput" }
+      responses:
+        "201":
+          description: created, verification email queued
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
+
+  /v1/auth/verify:
+    post:
+      operationId: PostV1AuthVerify
+      tags: [auth]
+      summary: confirm email verification token
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        "204":
+          description: verified
+        "410":
+          $ref: "#/components/responses/Problem"
+
+  /v1/auth/login:
+    post:
+      operationId: PostV1AuthLogin
+      tags: [auth]
+      summary: email login returning JWT pair
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginInput" }
+      responses:
+        "200":
+          description: jwt pair
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JwtPair" }
+        "401":
+          $ref: "#/components/responses/Problem"
+
+  /v1/auth/request-password-reset:
+    post:
+      operationId: PostV1AuthRequestPasswordReset
+      tags: [auth]
+      summary: send single-use reset token by email
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "202":
+          description: accepted regardless of account existence
+
+  /v1/auth/reset-password:
+    post:
+      operationId: PostV1AuthResetPassword
+      tags: [auth]
+      summary: consume reset token and set new password
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, new_password]
+              properties:
+                token: { type: string }
+                new_password: { type: string, format: password }
+      responses:
+        "204":
+          description: password updated
+        "410":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+
+  /v1/github/start:
+    get:
+      operationId: GetV1GithubStart
+      tags: [auth]
+      summary: begin GitHub OAuth app binding (repo scope only)
+      responses:
+        "302":
+          description: redirect to GitHub authorize URL
+
+  /v1/github/callback:
+    get:
+      operationId: GetV1GithubCallback
+      tags: [auth]
+      summary: OAuth callback exchanging code for encrypted binding token
+      parameters:
+        - name: code
+          in: query
+          schema: { type: string }
+        - name: state
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: binding stored
+        "403":
+          $ref: "#/components/responses/Problem"
+
+  /v1/github/repos:
+    get:
+      operationId: GetV1GithubRepos
+      tags: [auth]
+      summary: paginated repositories accessible via the binding
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+      responses:
+        "200":
+          description: repo list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GithubRepo" }
+        "401":
+          $ref: "#/components/responses/Problem"
+
+  /v1/github/binding:
+    delete:
+      operationId: DeleteV1GithubBinding
+      tags: [auth]
+      summary: remove the GitHub binding
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "204":
+          description: unbound
+
+  /v1/apps:
+    get:
+      operationId: GetV1Apps
+      tags: [apps]
+      summary: list applications in the workspace
+      responses:
+        "200":
+          description: app list scoped to caller organization
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/App" }
+    post:
+      tags: [apps]
+      summary: create application
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppCreateInput" }
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/App" }
+        "402":
+          $ref: "#/components/responses/QuotaProblem"
+
+  /v1/apps/{appId}:
+    get:
+      operationId: GetV1AppsByAppId
+      tags: [apps]
+      summary: get one application
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+      responses:
+        "200":
+          description: app
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/App" }
+        "404":
+          $ref: "#/components/responses/Problem"
+    patch:
+      operationId: PatchV1AppsByAppId
+      tags: [apps]
+      summary: update mutable fields
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppUpdateInput" }
+      responses:
+        "200":
+          description: updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/App" }
+    delete:
+      operationId: DeleteV1AppsByAppId
+      tags: [apps]
+      summary: soft delete (async pipeline, restorable during retention)
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: deletion pipeline started
+        "404":
+          $ref: "#/components/responses/Problem"
+
+  /v1/apps/{appId}/services:
+    post:
+      operationId: PostV1AppsServices
+      tags: [apps]
+      summary: declare a service on the application
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServiceInput" }
+      responses:
+        "201":
+          description: declared
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Service" }
+
+  /v1/apps/{appId}/environments:
+    post:
+      operationId: PostV1AppsEnvironments
+      tags: [apps]
+      summary: create an environment (production/staging/preview-*)
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "201":
+          description: environment created
+
+  /v1/analyze:
+    post:
+      operationId: PostV1Analyze
+      tags: [analyze]
+      summary: scan a repository and produce an AppSpec proposal
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnalyzeInput" }
+      responses:
+        "200":
+          description: proposed AppSpec with confidence report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalyzeResult" }
+        "422":
+          $ref: "#/components/responses/UnsupportedStackProblem"
+
+  /v1/apps/{appId}/spec:
+    put:
+      operationId: PutV1AppsSpec
+      tags: [analyze]
+      summary: manual AppSpec override (replaces analyzer proposal)
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppSpec" }
+      responses:
+        "204":
+          description: spec stored
+        "422":
+          $ref: "#/components/responses/Problem"
+
+  /v1/apps/{appId}/plan:
+    get:
+      operationId: GetV1AppsPlan
+      tags: [plan]
+      summary: preview deployment plan (resources, database, domain)
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+      responses:
+        "200":
+          description: plan awaiting approval
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Plan" }
+
+  /v1/apps/{appId}/deployments:
+    post:
+      operationId: PostV1AppsDeployments
+      tags: [deployments]
+      summary: approve a plan and start a deployment (plan_id is the approval)
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan_id]
+              properties:
+                plan_id: { type: string }
+      responses:
+        "202":
+          description: deployment started
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Deployment" }
+        "410":
+          $ref: "#/components/responses/PlanExpiredProblem"
+        "402":
+          $ref: "#/components/responses/QuotaProblem"
+
+  /v1/apps/{appId}/deployments/{deploymentId}:
+    get:
+      operationId: GetV1AppsDeployments
+      tags: [deployments]
+      summary: deployment status including diagnostics reference when degraded
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/DeploymentId"
+      responses:
+        "200":
+          description: status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Deployment" }
+        "404":
+          $ref: "#/components/responses/Problem"
+
+  /v1/apps/{appId}/rollback:
+    post:
+      operationId: PostV1AppsRollback
+      tags: [deployments]
+      summary: roll back to previous or explicit revision
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target_revision: { type: integer }
+      responses:
+        "202":
+          description: rolling back
+        "400":
+          $ref: "#/components/responses/Problem"
+
+  /v1/apps/{appId}/restart:
+    post:
+      operationId: PostV1AppsRestart
+      tags: [deployments]
+      summary: rollout restart keeping running state
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: restart issued
+
+  /v1/apps/{appId}/logs:
+    get:
+      operationId: GetV1AppsLogs
+      tags: [deployments]
+      summary: streamed build or app logs (SSE)
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - name: source
+          in: query
+          schema:
+            type: string
+            enum: [build, app]
+        - name: tail
+          in: query
+          schema: { type: integer, default: 100 }
+      responses:
+        "200":
+          description: log stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "404":
+          $ref: "#/components/responses/Problem"
+
+  /v1/apps/{appId}/env:
+    put:
+      operationId: PutV1AppsEnv
+      tags: [secrets]
+      summary: set one runtime env var backed by the secret store
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, value]
+              properties:
+                name: { type: string }
+                value: { type: string, format: password }
+      responses:
+        "204":
+          description: stored (never echoed back)
+
+  /v1/apps/{appId}/secrets:
+    get:
+      operationId: GetV1AppsSecrets
+      tags: [secrets]
+      summary: list secret names only; values are always "configured"
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+      responses:
+        "200":
+          description: masked list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SecretItem" }
+
+  /v1/apps/{appId}/secrets/reveal:
+    post:
+      operationId: PostV1AppsSecretsReveal
+      tags: [secrets]
+      summary: reveal one secret value (requires dedicated capability, audited)
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "200":
+          description: plaintext to privileged caller
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value: { type: string }
+        "403":
+          $ref: "#/components/responses/Problem"
+
+  /v1/apps/{appId}/domains:
+    get:
+      operationId: GetV1AppsDomains
+      tags: [domains]
+      summary: list bound domains
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+      responses:
+        "200":
+          description: domain list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Domain" }
+    post:
+      tags: [domains]
+      summary: bind default subdomain instantly or start custom-domain TXT challenge
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DomainBindInput" }
+      responses:
+        "201":
+          description: domain record (verified or pending challenge)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Domain" }
+        "409":
+          $ref: "#/components/responses/Problem"
+
+  /v1/apps/{appId}/domains/{domainId}/verify:
+    post:
+      operationId: PostV1AppsDomainsVerify
+      tags: [domains]
+      summary: re-check DNS ownership challenge
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - name: domainId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: verified state after check
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Domain" }
+
+  /v1/apps/{appId}/databases:
+    post:
+      operationId: PostV1AppsDatabases
+      tags: [databases]
+      summary: request an isolated database binding
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DatabaseRequest" }
+      responses:
+        "201":
+          description: binding pending provisioning
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DatabaseBinding" }
+        "402":
+          $ref: "#/components/responses/QuotaProblem"
+
+  /v1/apps/{appId}/diagnostics:
+    get:
+      operationId: GetV1AppsDiagnostics
+      tags: [deployments]
+      summary: structured failure diagnostics for the latest failed verification
+      parameters:
+        - $ref: "#/components/parameters/AppId"
+      responses:
+        "200":
+          description: diagnostics bundle
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Diagnostics" }
+
+  /v1/tokens:
+    get:
+      operationId: GetV1Tokens
+      tags: [tokens]
+      summary: list workspace API tokens (prefix display only)
+      responses:
+        "200":
+          description: token list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ApiToken" }
+    post:
+      tags: [tokens]
+      summary: create token; plaintext returned exactly once
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "201":
+          description: created with one-time plaintext
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiToken"
+                  - type: object
+                    required: [plaintext]
+                    properties:
+                      plaintext: { type: string }
+
+  /v1/tokens/{tokenId}:
+    delete:
+      operationId: DeleteV1Tokens
+      tags: [tokens]
+      summary: revoke token
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "204":
+          description: revoked
+
+  /v1/members:
+    get:
+      operationId: GetV1Members
+      tags: [members]
+      summary: list organization members
+      responses:
+        "200":
+          description: member list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Member" }
+    post:
+      tags: [members]
+      summary: invite member by email with role
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email: { type: string, format: email }
+                role: { $ref: "#/components/schemas/Role" }
+      responses:
+        "201":
+          description: invited
+
+  /v1/auditlogs:
+    get:
+      operationId: GetV1Auditlogs
+      tags: [audit]
+      summary: query audit trail within the workspace
+      parameters:
+        - name: action
+          in: query
+          schema: { type: string }
+        - name: actor_type
+          in: query
+          schema:
+            type: string
+            enum: [user, agent, admin, controller]
+      responses:
+        "200":
+          description: filtered entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AuditEntry" }
+
+  /v1/admin/users:
+    get:
+      operationId: GetV1AdminUsers
+      tags: [admin]
+      summary: list users (platform admin capability)
+      responses:
+        "200":
+          description: users
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/User" }
+        "403":
+          $ref: "#/components/responses/Problem"
+
+  /v1/admin/users/{userId}/suspend:
+    post:
+      operationId: PostV1AdminUsersSuspend
+      tags: [admin]
+      summary: suspend or restore a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [suspended]
+              properties:
+                suspended: { type: boolean }
+      responses:
+        "204":
+          description: applied
+        "403":
+          $ref: "#/components/responses/Problem"
+
+  /v1/admin/apps:
+    get:
+      operationId: GetV1AdminApps
+      tags: [admin]
+      summary: list all applications across workspaces
+      responses:
+        "200":
+          description: apps
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/App" }
+        "403":
+          $ref: "#/components/responses/Problem"
+
+  /v1/admin/quota:
+    put:
+      operationId: PutV1AdminQuota
+      tags: [admin]
+      summary: override quota tier for an organization
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [org_id, tier]
+              properties:
+                org_id: { type: string }
+                tier: { type: string, enum: [free, pro] }
+      responses:
+        "204":
+          description: updated
+        "403":
+          $ref: "#/components/responses/Problem"
+
+  /v1/admin/security-events:
+    get:
+      operationId: GetV1AdminSecurityEvents
+      tags: [admin]
+      summary: stream security events
+      responses:
+        "200":
+          description: events
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SecurityEvent" }
+        "403":
+          $ref: "#/components/responses/Problem"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: session JWT or workspace API token
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      schema: { type: string, maxLength: 255 }
+      description: replay-safe key for mutation requests
+    AppId:
+      name: appId
+      in: path
+      required: true
+      schema: { type: string }
+    DeploymentId:
+      name: deploymentId
+      in: path
+      required: true
+      schema: { type: string }
+
+  responses:
+    Problem:
+      description: RFC7807 problem
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    QuotaProblem:
+      description: quota exceeded (payment required semantics)
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    UnsupportedStackProblem:
+      description: analyzer could not map the stack
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    PlanExpiredProblem:
+      description: plan approval window elapsed
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        error_code:
+          type: string
+          enum:
+            - QUOTA_EXCEEDED
+            - UNSUPPORTED_STACK
+            - ZERO_SERVICES
+            - PLAN_EXPIRED
+            - DOMAIN_NOT_VERIFIED
+            - IDEMPOTENCY_CONFLICT
+            - VALIDATION_FAILED
+            - FORBIDDEN_CAPABILITY
+
+    User:
+      type: object
+      required: [id, email]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        email_verified: { type: boolean }
+        github_bound: { type: boolean }
+
+    RegisterInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+
+    JwtPair:
+      type: object
+      required: [access_token, refresh_token]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+
+    GithubRepo:
+      type: object
+      required: [full_name, private, default_branch]
+      properties:
+        full_name: { type: string }
+        private: { type: boolean }
+        default_branch: { type: string }
+
+    Role:
+      type: string
+      enum: [platform_admin, workspace_admin, member]
+
+    App:
+      type: object
+      required: [id, name, created_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    AppCreateInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 63 }
+
+    AppUpdateInput:
+      type: object
+      properties:
+        name: { type: string }
+
+    ServiceInput:
+      type: object
+      required: [name, type, runtime]
+      properties:
+        name: { type: string }
+        type: { type: string, enum: [frontend, backend] }
+        runtime: { type: string, enum: [node, python, go] }
+        port: { type: integer }
+
+    Service:
+      allOf:
+        - $ref: "#/components/schemas/ServiceInput"
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string }
+
+    AppSpec:
+      type: object
+      required: [version, services]
+      properties:
+        version:
+          type: string
+          enum: [v1]
+        services:
+          type: object
+          additionalProperties:
+            type: object
+            required: [type, runtime, path]
+            properties:
+              type: { type: string, enum: [frontend, backend] }
+              runtime: { type: string, enum: [node, python, go] }
+              path: { type: string }
+              port: { type: integer }
+        database:
+          type: object
+          properties:
+            mongodb: { type: boolean }
+        routing:
+          type: object
+          additionalProperties:
+            type: object
+            required: [service]
+            properties:
+              service: { type: string }
+
+    AnalyzeInput:
+      type: object
+      required: [repo_url]
+      properties:
+        repo_url: { type: string }
+        ref: { type: string, default: main }
+        github_token_ref: { type: string }
+
+    ConfidenceEntry:
+      type: object
+      required: [field, decision, evidence]
+      properties:
+        field: { type: string }
+        decision: { type: string }
+        evidence:
+          type: array
+          items: { type: string }
+
+    AnalyzeResult:
+      type: object
+      required: [app_spec, confidence]
+      properties:
+        app_spec: { $ref: "#/components/schemas/AppSpec" }
+        confidence:
+          type: array
+          items: { $ref: "#/components/schemas/ConfidenceEntry" }
+
+    PlanResource:
+      type: object
+      required: [cpu_millicores, memory_megabytes]
+      properties:
+        cpu_millicores: { type: integer }
+        memory_megabytes: { type: integer }
+
+    PlanService:
+      type: object
+      required: [name, resources]
+      properties:
+        name: { type: string }
+        resources: { $ref: "#/components/schemas/PlanResource" }
+
+    Plan:
+      type: object
+      required: [id, namespace_name, services, expires_at]
+      properties:
+        id: { type: string }
+        namespace_name: { type: string }
+        services:
+          type: array
+          items: { $ref: "#/components/schemas/PlanService" }
+        database_name: { type: string }
+        domain: { type: string }
+        expires_at: { type: string, format: date-time }
+
+    DeploymentState:
+      type: string
+      enum:
+        - CREATED
+        - AWAITING_APPROVAL
+        - PLANNED
+        - QUEUED
+        - BUILDING
+        - DEPLOYING
+        - VERIFYING
+        - RUNNING
+        - DEGRADED
+        - FAILED
+        - STOPPED
+        - ROLLING_BACK
+        - DELETING
+        - DELETED
+        - RESTORED
+
+    Deployment:
+      type: object
+      required: [id, app_id, state]
+      properties:
+        id: { type: string }
+        app_id: { type: string }
+        state: { $ref: "#/components/schemas/DeploymentState" }
+        git_sha: { type: string }
+        image_digest: { type: string }
+        revision: { type: integer }
+        diagnostics_ref: { type: string }
+        created_at: { type: string, format: date-time }
+
+    SecretItem:
+      type: object
+      required: [name, value]
+      properties:
+        name: { type: string }
+        value:
+          type: string
+          enum: ["configured"]
+
+    DomainBindInput:
+      type: object
+      required: [hostname]
+      properties:
+        hostname:
+          type: string
+          description: empty/custom; omit to allocate default subdomain
+
+    Domain:
+      type: object
+      required: [id, hostname, verified]
+      properties:
+        id: { type: string }
+        hostname: { type: string }
+        verified: { type: boolean }
+        txt_challenge: { type: string }
+        cname_target: { type: string }
+
+    DatabaseRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [mongodb] }
+        isolation: { type: string, enum: [shared, dedicated], default: shared }
+
+    DatabaseBinding:
+      type: object
+      required: [id, app_id, type, state]
+      properties:
+        id: { type: string }
+        app_id: { type: string }
+        type: { type: string }
+        isolation: { type: string }
+        state: { type: string, enum: [pending, ready, failed] }
+
+    ApiToken:
+      type: object
+      required: [id, name, prefix, created_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        prefix: { type: string }
+        created_at: { type: string, format: date-time }
+
+    Member:
+      type: object
+      required: [user_id, email, role]
+      properties:
+        user_id: { type: string }
+        email: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+
+    AuditEntry:
+      type: object
+      required: [actor_type, action, result, timestamp]
+      properties:
+        actor_type: { type: string, enum: [user, agent, admin, controller] }
+        agent: { type: string }
+        action: { type: string }
+        result: { type: string }
+        timestamp: { type: string, format: date-time }
+
+    SecurityEvent:
+      type: object
+      required: [kind, source_ip, timestamp]
+      properties:
+        kind: { type: string }
+        source_ip: { type: string }
+        detail: { type: string }
+        timestamp: { type: string, format: date-time }
+
+    Diagnostics:
+      type: object
+      required: [classified]
+      properties:
+        classified: { type: string }
+        suggestions:
+          type: array
+          items: { type: string }
+        build_log_tail: { type: string }
+        pod_events: { type: string }

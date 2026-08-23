@@ -3,6 +3,8 @@ TENARA_BASE_DOMAIN ?= 127.0.0.1.nip.io
 GO_MODULES := control-plane controllers analyzer builder verifier providers
 BIN_DIR := bin
 GOLANGCI_LINT := $(BIN_DIR)/golangci-lint
+GOFUMPT := $(BIN_DIR)/gofumpt
+GOFUMPT_ABS := $(abspath $(GOFUMPT))
 export PATH := $(abspath $(BIN_DIR)):$(PATH)
 
 .PHONY: lint lint-go lint-ts test test-go tools \
@@ -10,25 +12,34 @@ export PATH := $(abspath $(BIN_DIR)):$(PATH)
 	e2e-smoke build-images helm-install migrate-up migrate-down
 
 ## tools: install project-local toolchain (golangci-lint v2 into ./bin)
-tools: $(GOLANGCI_LINT)
+GOFUMPT := $(BIN_DIR)/gofumpt
 
-$(GOLANGCI_LINT): go.work
-	GOBIN=$(abspath $(BIN_DIR)) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+tools: $(GOLANGCI_LINT) $(GOFUMPT)
+
+$(GOLANGCI_LINT):
+	GOBIN=$(abspath $(BIN_DIR)) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1
+
+$(GOFUMPT):
+	GOBIN=$(abspath $(BIN_DIR)) go install mvdan.cc/gofumpt@latest
 
 node_modules:
 	pnpm install --no-frozen-lockfile
 
 ## lint: full static analysis gate (Go + TS)
-lint: lint-go lint-ts
+lint: lint-go lint-ts lint-contract
 
 lint-go: tools
 	@set -e; for m in $(GO_MODULES); do \
+		echo "== gofumpt $$m"; (cd "$$m" && test -z "$$($(GOFUMPT_ABS) -l .)"); \
 		echo "== golangci-lint $$m"; (cd "$$m" && golangci-lint run ./...); \
 	done
 
 lint-ts: node_modules
 	pnpm exec eslint .
 	pnpm exec prettier --check .
+
+lint-contract:
+	pnpm exec spectral lint api/openapi.yaml
 
 ## test: unit/test gate across all modules
 test: test-go
@@ -66,7 +77,8 @@ gateway-down:
 	kubectl delete -f deploy/kind/gateway.yaml --ignore-not-found
 	kubectl delete -f deploy/kind/demo-httpecho.yaml --ignore-not-found
 generate:
-	@echo "generate: not wired yet (plan todo 5)"; exit 0
+	$(BIN_DIR)/oapi-codegen -config control-plane/internal/gen/cfg.yaml api/openapi.yaml
+	pnpm exec openapi-typescript api/openapi.yaml -o sdk/ts/src/generated/schema.ts
 e2e-smoke:
 	@echo "e2e-smoke: not wired yet (plan todo 7)"; exit 0
 build-images:

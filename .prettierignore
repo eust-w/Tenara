@@ -5,3 +5,7 @@ bin
 coverage
 .next
 .nuxt
+
+# third-party / generated artifacts
+deploy/kind/calico.yaml
+sdk/ts/src/generated/
