@@ -11,9 +11,31 @@ function bearer(request: Request): string | null {
   return cookie?.[1] ?? null;
 }
 
-export async function POST(request: Request) {
+function authHeaders(request: Request): Record<string, string> {
   const token = bearer(request);
   if (token === null) {
+    throw new Error("unauthenticated");
+  }
+  return { "content-type": "application/json", Authorization: `Bearer ${token}` };
+}
+
+export async function GET(request: Request) {
+  let headers: Record<string, string>;
+  try {
+    headers = authHeaders(request);
+  } catch {
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  }
+  const upstream = await fetch(`${API}/v1/apps`, { headers });
+  const payload = await upstream.json().catch(() => ({ apps: [] }));
+  return NextResponse.json(payload, { status: upstream.status });
+}
+
+export async function POST(request: Request) {
+  let headers: Record<string, string>;
+  try {
+    headers = authHeaders(request);
+  } catch {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
   const body = await request.json().catch(() => null);
@@ -22,9 +44,9 @@ export async function POST(request: Request) {
   }
   const upstream = await fetch(`${API}/v1/apps`, {
     method: "POST",
-    headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+    headers,
     body: JSON.stringify(body),
   });
-  const payload = (await upstream.json().catch(() => ({}))) as Record<string, unknown>;
+  const payload = await upstream.json().catch(() => ({}));
   return NextResponse.json(payload, { status: upstream.status });
 }
