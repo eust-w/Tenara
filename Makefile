@@ -80,7 +80,11 @@ generate:
 	$(BIN_DIR)/oapi-codegen -config control-plane/internal/gen/cfg.yaml api/openapi.yaml
 	pnpm exec openapi-typescript api/openapi.yaml -o sdk/ts/src/generated/schema.ts
 e2e-smoke:
-	@echo "e2e-smoke: not wired yet (plan todo 7)"; exit 0
+	cd e2e && pnpm install --no-frozen-lockfile >/dev/null
+	kubectl -n tenara-system port-forward svc/tenara-control-plane 18080:80 >/tmp/tenara-pf.log 2>&1 & \
+	PF_PID=$$!; sleep 3; \
+	cd e2e && pnpm exec playwright test -g smoke; status=$$?; \
+	kill $$PF_PID 2>/dev/null; exit $$status
 build-images:
 	bash scripts/build-images.sh
 helm-install: 
