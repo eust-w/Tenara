@@ -1,4 +1,6 @@
 packages:
+  - web/*
   - mcp
   - sdk/*
   - e2e
+
