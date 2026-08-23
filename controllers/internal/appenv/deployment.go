@@ -77,6 +77,15 @@ func RenderDeployment(appID, env, namespace string, s ServiceInput) (*appsv1.Dep
 		LivenessProbe:  tcpProbe(s.Port),
 	}
 
+	podSpec := corev1.PodSpec{
+		AutomountServiceAccountToken: boolPtr(false),
+		Containers:                   []corev1.Container{container},
+	}
+	ApplyTenantScheduling(&podSpec)
+	if schedErr := EnsureNoCrossPoolToleration(&podSpec); schedErr != nil {
+		return nil, schedErr
+	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: s.Name, Namespace: namespace, Labels: labels},
 		Spec: appsv1.DeploymentSpec{
@@ -84,10 +93,7 @@ func RenderDeployment(appID, env, namespace string, s ServiceInput) (*appsv1.Dep
 			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": s.Name}},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{Labels: labels},
-				Spec: corev1.PodSpec{
-					AutomountServiceAccountToken: boolPtr(false),
-					Containers:                   []corev1.Container{container},
-				},
+				Spec:       podSpec,
 			},
 		},
 	}, nil

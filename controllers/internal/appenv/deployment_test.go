@@ -83,3 +83,38 @@ func TestRenderDeploymentsFailFast(t *testing.T) {
 		t.Fatalf("error should mention latest: %v", err)
 	}
 }
+
+func TestRenderDeploymentPinnedToTenantPool(t *testing.T) {
+	d := renderedWeb()
+	spec := d.Spec.Template.Spec
+
+	if got := spec.NodeSelector[RoleNodeLabel]; got != TenantRoleValue {
+		t.Fatalf("nodeSelector role = %q, want tenant", got)
+	}
+
+	var tenantTols int
+	for _, tol := range spec.Tolerations {
+		switch {
+		case tol.Value == TenantRoleValue && tol.Effect == corev1.TaintEffectNoSchedule:
+			tenantTols++
+		case tol.Value == "build" || tol.Value == "management":
+			t.Fatalf("cross-pool toleration leaked: %+v", tol)
+		}
+	}
+	if tenantTols != 1 {
+		t.Fatalf("tenant toleration count = %d, want exactly 1", tenantTols)
+	}
+	if err := EnsureNoCrossPoolToleration(&spec); err != nil {
+		t.Fatalf("guard must pass on rendered workload: %v", err)
+	}
+}
+
+func TestGuardRejectsForeignPoolToleration(t *testing.T) {
+	spec := corev1.PodSpec{Tolerations: []corev1.Toleration{{
+		Key: RoleNodeLabel, Operator: corev1.TolerationOpEqual,
+		Value: "build", Effect: corev1.TaintEffectNoSchedule,
+	}}}
+	if err := EnsureNoCrossPoolToleration(&spec); err == nil {
+		t.Fatal("build-pool toleration on tenant workload must be rejected")
+	}
+}
