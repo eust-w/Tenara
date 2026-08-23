@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -26,35 +27,43 @@ func TestRequireDigestImage(t *testing.T) {
 	}
 }
 
-func TestRenderDeploymentHardening(t *testing.T) {
-	d, err := RenderDeployment("acme", "prod", "app-acme-prod", goodSvc())
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := d.Spec.Template.Spec.Containers[0]
-	sc := c.SecurityContext
+func renderedWeb() *appsv1.Deployment {
+	d, _ := RenderDeployment("acme", "prod", "app-acme-prod", goodSvc())
+	return d
+}
 
-	switch {
-	case sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot:
-		t.Fatal("runAsNonRoot must be true")
-	case sc.AllowPrivilegeEscalation == nil || *sc.AllowPrivilegeEscalation:
-		t.Fatal("allowPrivilegeEscalation must be false")
-	case sc.ReadOnlyRootFilesystem == nil || !*sc.ReadOnlyRootFilesystem:
-		t.Fatal("readOnlyRootFilesystem must be true")
-	case sc.Capabilities == nil || len(sc.Capabilities.Drop) != 1 || sc.Capabilities.Drop[0] != "ALL":
-		t.Fatal("capabilities must drop ALL")
-	case sc.SeccompProfile == nil || sc.SeccompProfile.Type != corev1.SeccompProfileTypeRuntimeDefault:
-		t.Fatal("seccomp must be RuntimeDefault")
-	}
+func TestRenderDeploymentContainerSecurity(t *testing.T) {
+	sc := renderedWeb().Spec.Template.Spec.Containers[0].SecurityContext
 
+	checks := []struct {
+		name string
+		ok   bool
+	}{
+		{"runAsNonRoot", sc.RunAsNonRoot != nil && *sc.RunAsNonRoot},
+		{"allowPrivilegeEscalation false", sc.AllowPrivilegeEscalation != nil && !*sc.AllowPrivilegeEscalation},
+		{"readOnlyRootFilesystem", sc.ReadOnlyRootFilesystem != nil && *sc.ReadOnlyRootFilesystem},
+		{"capabilities drop ALL", sc.Capabilities != nil && len(sc.Capabilities.Drop) == 1 && sc.Capabilities.Drop[0] == "ALL"},
+		{"seccomp RuntimeDefault", sc.SeccompProfile != nil && sc.SeccompProfile.Type == corev1.SeccompProfileTypeRuntimeDefault},
+	}
+	for _, tc := range checks {
+		if !tc.ok {
+			t.Errorf("%s violated", tc.name)
+		}
+	}
+}
+
+func TestRenderDeploymentPodDefaults(t *testing.T) {
+	d := renderedWeb()
 	spec := d.Spec.Template.Spec
+
 	if spec.AutomountServiceAccountToken == nil || *spec.AutomountServiceAccountToken {
-		t.Fatal("automount SA token must be false at pod level")
+		t.Error("automount SA token must be false at pod level")
 	}
 	if d.Spec.Replicas == nil || *d.Spec.Replicas != 1 {
-		t.Fatalf("replicas default = %v, want 1", d.Spec.Replicas)
+		t.Errorf("replicas default = %v, want 1", d.Spec.Replicas)
 	}
 
+	c := spec.Containers[0]
 	for _, p := range []*corev1.Probe{c.ReadinessProbe, c.LivenessProbe} {
 		if got := int32(p.TCPSocket.Port.IntValue()); got != 8080 {
 			t.Fatalf("probe port = %d, want 8080", got)
