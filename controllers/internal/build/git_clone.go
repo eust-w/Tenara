@@ -12,7 +12,7 @@ import (
 
 const (
 	cloneImage       = "alpine/git:v2.49.1"
-	tokenMountPath   = "/var/run/tenara-git"
+	tokenMountPath   = "/var/run/tenara-git" //nolint:gosec // G101 false positive: volume mount path, not a credential
 	tokenFileName    = "token"
 	workspaceVolume  = "workspace"
 	workspaceMount   = "/workspace"
