@@ -1,0 +1,167 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    # ── Correctness ─────────────────────────────────────────────
+    - govet
+    - staticcheck
+    - errcheck
+    - errorlint
+    - nilerr
+    - nilnil
+    - bodyclose
+    - rowserrcheck
+    - sqlclosecheck
+    - contextcheck
+    - fatcontext
+    - copyloopvar
+    - intrange
+    - usetesting
+    - testifylint
+
+    # ── Style / readability ─────────────────────────────────────
+    # gofumpt / goimports live under `formatters` in v2.13+; enabled below.
+    - whitespace
+    - misspell
+    - unconvert
+    - unparam
+    - ineffassign
+    - dupword
+
+    # ── Architecture ────────────────────────────────────────────
+    - gocognit
+    - gocyclo
+    - funlen
+    - lll
+    - nestif
+    - revive
+    - unused
+
+    # ── Exhaustiveness ──────────────────────────────────────────
+    - exhaustive
+
+    # ── Security ────────────────────────────────────────────────
+    - gosec
+
+    # ── Logging ─────────────────────────────────────────────────
+    - sloglint
+
+    # ── Performance ─────────────────────────────────────────────
+    - perfsprint
+    - prealloc
+    - makezero
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  govet:
+    enable-all: true
+    settings:
+      shadow:
+        strict: true
+
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true
+
+  gocognit:
+    min-complexity: 25
+
+  gocyclo:
+    min-complexity: 15
+
+  funlen:
+    lines: 90
+    statements: 60
+    ignore-comments: true
+
+  lll:
+    line-length: 120
+    tab-width: 4
+
+  nestif:
+    min-complexity: 4
+
+  exhaustive:
+    default-signifies-exhaustive: false
+    check:
+      - switch
+      - map
+
+  gosec:
+    excludes:
+      - G104
+      - G304
+
+  sloglint:
+    no-mixed-args: true
+    kv-only: false
+    attr-only: true
+    no-global: all
+    context: scope
+    static-msg: true
+    no-raw-keys: true
+    key-naming-case: snake
+
+  testifylint:
+    enable-all: true
+    disable:
+      - require-error
+
+  revive:
+    severity: warning
+    rules:
+      - name: var-naming
+      - name: package-comments
+      - name: exported
+      - name: error-return
+      - name: error-naming
+      - name: errorf
+      - name: if-return
+      - name: indent-error-flow
+      - name: range-val-in-closure
+      - name: redefines-builtin-id
+      - name: superfluous-else
+      - name: unhandled-error
+        arguments:
+          - "fmt.Print.*"
+          - "fmt.Fprint.*"
+
+  perfsprint:
+    integer-format: true
+    error-format: true
+    bool-format: true
+    string-format: true
+
+  goimports:
+    local-prefixes:
+      - tenara
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - funlen
+        - lll
+        - dupl
+        - gosec
+    - path: \.pb\.go$
+      linters: [all]
+    - path: _gen\.go$
+      linters: [all]
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports

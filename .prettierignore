@@ -1,0 +1,7 @@
+pnpm-lock.yaml
+node_modules
+dist
+bin
+coverage
+.next
+.nuxt

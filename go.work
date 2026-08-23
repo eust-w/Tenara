@@ -1,0 +1,10 @@
+go 1.24
+
+use (
+	analyzer
+	builder
+	control-plane
+	controllers
+	providers
+	verifier
+)

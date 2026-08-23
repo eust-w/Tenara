@@ -1,0 +1,26 @@
+# Session/plan artifacts (never enter git)
+.omo/
+
+# Dependencies & build output
+node_modules/
+bin/
+dist/
+build/
+coverage/
+tmp/
+
+# Next.js
+.next/
+.nuxt/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Logs & OS noise
+*.log
+.DS_Store
+
+# Go workspace artifacts
+*.test
