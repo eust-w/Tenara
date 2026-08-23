@@ -1,0 +1,23 @@
+# Envoy Gateway control-plane components pinned to the simulated management pool.
+deployment:
+  pod:
+    nodeSelector:
+      tenara.io/role: management
+    tolerations:
+      - key: tenara.io/role
+        operator: Equal
+        value: management
+        effect: NoSchedule
+
+certgen:
+  job:
+    nodeSelector:
+      tenara.io/role: management
+    tolerations:
+      - key: tenara.io/role
+        operator: Equal
+        value: management
+        effect: NoSchedule
+
+topologyInjector:
+  enabled: false

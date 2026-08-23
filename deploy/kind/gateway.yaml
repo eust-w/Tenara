@@ -1,0 +1,96 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy-gateway
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  parametersRef:
+    group: gateway.envoyproxy.io
+    kind: EnvoyProxy
+    name: tenara-proxy
+    namespace: envoy-gateway-system
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: tenara-proxy
+  namespace: envoy-gateway-system
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      # kind extraPortMappings publish host 80/443 on the control-plane node;
+      # pin Envoy there and reuse listener ports so hostPort lines up.
+      useListenerPortAsContainerPort: true
+      envoyDeployment:
+        replicas: 1
+        pod:
+          nodeSelector:
+            kubernetes.io/hostname: tenara-control-plane
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              template:
+                spec:
+                  containers:
+                    - name: envoy
+                      ports:
+                        - containerPort: 80
+                          hostPort: 80
+                          protocol: TCP
+                        - containerPort: 443
+                          hostPort: 443
+                          protocol: TCP
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenara-system
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: tenara
+  namespace: tenara-system
+spec:
+  gatewayClassName: envoy-gateway
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: tenara-wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+---
+# Catch-all HTTP -> HTTPS redirect (301) for every host on port 80.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: https-redirect
+  namespace: tenara-system
+spec:
+  parentRefs:
+    - name: tenara
+      sectionName: http
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

@@ -1,3 +1,5 @@
+TENARA_BASE_DOMAIN ?= 127.0.0.1.nip.io
+
 GO_MODULES := control-plane controllers analyzer builder verifier providers
 BIN_DIR := bin
 GOLANGCI_LINT := $(BIN_DIR)/golangci-lint
@@ -53,6 +55,16 @@ kind-up:
 	kubectl -n kube-system rollout status ds/calico-node --timeout=300s
 kind-down:
 	kind delete cluster --name tenara || true
+gateway-up:
+	bash scripts/dev-certs.sh
+	kubectl apply -f deploy/kind/gateway.yaml
+	kubectl apply -f deploy/kind/demo-httpecho.yaml
+	@sleep 5
+	curl -s --noproxy '*' --resolve demo.$(TENARA_BASE_DOMAIN):443:127.0.0.1 \
+		--cacert "$$(mkcert -CAROOT)/rootCA.pem" https://demo.$(TENARA_BASE_DOMAIN)/ | grep -q hello
+gateway-down:
+	kubectl delete -f deploy/kind/gateway.yaml --ignore-not-found
+	kubectl delete -f deploy/kind/demo-httpecho.yaml --ignore-not-found
 generate:
 	@echo "generate: not wired yet (plan todo 5)"; exit 0
 e2e-smoke:
