@@ -153,6 +153,7 @@ linters:
           - lll
           - errcheck
           - gosec
+          - bodyclose
           - revive
       # Handler layer implements the generated ServerInterface whose names
       # (AppId etc.) intentionally mirror the OpenAPI contract, so revive's

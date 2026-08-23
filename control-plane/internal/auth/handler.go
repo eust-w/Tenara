@@ -37,8 +37,8 @@ func (s *Service) Mount(r chi.Router) {
 	r.Post("/v1/auth/reset-password", s.handleResetPassword)
 	r.Get("/v1/me", s.authenticated(s.handleMe))
 	r.Get("/v1/members", s.requireCap(rbac.CapAppRead, s.handleListMembers))
-	r.Post("/v1/members", s.requireCap(rbac.CapMemberInvite, s.handleInviteMember))
-	r.Post("/v1/tokens", s.authenticated(s.handleCreateToken))
+	r.Post("/v1/members", s.requireCap(rbac.CapMemberInvite, s.idem(s.handleInviteMember)))
+	r.Post("/v1/tokens", s.authenticated(s.idem(s.handleCreateToken)))
 	r.Get("/v1/tokens", s.authenticated(s.handleListTokens))
 	r.Delete("/v1/tokens/{tokenId}", s.authenticated(s.handleRevokeToken))
 }

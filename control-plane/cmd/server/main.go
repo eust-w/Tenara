@@ -39,6 +39,8 @@ func main() {
 	}
 	defer pool.Close()
 
+	auth.StartIdempotencyCleanup(ctx, auth.NewStore(pool))
+
 	router := chi.NewRouter()
 	router.Use(httpx.RequestID)
 	router.Use(httpx.Recover(log))
