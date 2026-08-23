@@ -198,6 +198,10 @@ linters:
       - path: controllers/internal/database/types\.go$
         linters:
           - govet
+      # Drift audit payload mirrors artifact JSON ordering.
+      - path: controllers/internal/appenv/drift\.go$
+        linters:
+          - govet
       # Verification report mirrors artifact JSON key ordering.
       - path: internal/verify/report\.go$
         linters:
