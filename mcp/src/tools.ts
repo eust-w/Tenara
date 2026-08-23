@@ -9,6 +9,7 @@ import { TenaraClient } from "@tenara/sdk";
 export interface ToolOut {
   human: string;
   data: unknown;
+  failed?: boolean;
 }
 
 export interface ToolDef {
