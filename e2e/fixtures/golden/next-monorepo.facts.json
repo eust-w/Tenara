@@ -9,6 +9,12 @@
       "lines": 1
     },
     {
+      "path": "e2e/fixtures/repos/next-monorepo/apps/api/pyproject.toml",
+      "kind": "pyproject-toml",
+      "sha256": "8142d66a706f",
+      "lines": 6
+    },
+    {
       "path": "e2e/fixtures/repos/next-monorepo/apps/web/next.config.mjs",
       "kind": "next-config",
       "sha256": "450f0af4f4c1",
@@ -17,11 +23,13 @@
     {
       "path": "e2e/fixtures/repos/next-monorepo/apps/web/package.json",
       "kind": "package-json",
-      "sha256": "514d6ada3cb6",
-      "lines": 6,
+      "sha256": "a1c5e9bd9a54",
+      "lines": 11,
       "top_keys": [
         "dependencies",
-        "name"
+        "name",
+        "private",
+        "scripts"
       ]
     },
     {
@@ -39,6 +47,16 @@
         "name",
         "private",
         "workspaces"
+      ]
+    },
+    {
+      "path": "e2e/fixtures/repos/next-monorepo/packages/ui/package.json",
+      "kind": "package-json",
+      "sha256": "f9e2680cffff",
+      "lines": 4,
+      "top_keys": [
+        "name",
+        "version"
       ]
     },
     {

@@ -1,0 +1,6 @@
+[project]
+name = "api"
+version = "0.1.0"
+
+[project.scripts]
+api = "api.main:app"
