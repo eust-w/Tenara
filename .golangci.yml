@@ -202,6 +202,10 @@ linters:
       - path: controllers/internal/appenv/drift\.go$
         linters:
           - govet
+      # Diagnostics payload mirrors artifact JSON ordering.
+      - path: internal/diagnose/diagnose\.go$
+        linters:
+          - govet
       # Verification report mirrors artifact JSON key ordering.
       - path: internal/verify/report\.go$
         linters:
