@@ -1,0 +1,100 @@
+name: tenara-dev
+
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_USER: tenara
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tenara_pg_dev}
+      POSTGRES_DB: tenara
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tenara -d tenara"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  mongo:
+    image: mongo:7.0.14
+    command: ["mongod", "--auth"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-tenara_mongo_dev}
+    ports:
+      - "127.0.0.1:27117:27017"
+    volumes:
+      - mongodata:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh mongodb://root:$${MONGO_INITDB_ROOT_PASSWORD}@127.0.0.1:27017/admin --quiet --eval 'db.runCommand({ping:1}).ok' | grep -q 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+  redis:
+    image: redis:7.4.1-alpine
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-tenara_redis_dev}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-tenara_redis_dev}
+    ports:
+      - "127.0.0.1:16379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tenara_minio_dev}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-tenara_minio_dev_pw}
+    ports:
+      - "127.0.0.1:19000:9000"
+      - "127.0.0.1:19001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+  registry:
+    image: registry:2.8.3
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - registrydata:/var/lib/registry
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:5000/v2/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8025/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  pgdata:
+  mongodata:
+  redisdata:
+  miniodata:
+  registrydata:

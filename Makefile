@@ -41,11 +41,12 @@ test-go:
 # ---- placeholders wired by later plan todos ----
 
 dev-up:
-	@echo "dev-up: not wired yet (plan todo 2)"; exit 0
+	docker compose -f deploy/docker-compose.yml up -d --wait
 dev-down:
-	@echo "dev-down: not wired yet (plan todo 2)"; exit 0
+	docker compose -f deploy/docker-compose.yml down
 dev-reset:
-	@echo "dev-reset: not wired yet (plan todo 2)"; exit 0
+	docker compose -f deploy/docker-compose.yml down -v
+	docker compose -f deploy/docker-compose.yml up -d --wait
 kind-up:
 	@echo "kind-up: not wired yet (plan todo 3)"; exit 0
 kind-down:
