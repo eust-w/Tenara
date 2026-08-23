@@ -173,7 +173,13 @@ linters:
       - path: apps/handlers\.go$
         linters:
           - govet
-      - path: auth/domains_http_test\.go$
+            - path: apps/deployments\\.go$
+        linters:
+          - govet
+      - path: apps/deployments_test\\.go$
+        linters:
+          - govet
+- path: auth/domains_http_test\.go$
         linters:
           - govet
       # Generated code never lints (oapi-codegen output).
