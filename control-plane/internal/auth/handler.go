@@ -34,36 +34,72 @@ func (s *Service) Mount(r chi.Router) {
 	r.Post("/v1/auth/request-password-reset", s.handleRequestReset)
 	r.Post("/v1/auth/reset-password", s.handleResetPassword)
 	r.Get("/v1/me", s.authenticated(s.handleMe))
+	r.Post("/v1/tokens", s.authenticated(s.handleCreateToken))
+	r.Get("/v1/tokens", s.authenticated(s.handleListTokens))
+	r.Delete("/v1/tokens/{tokenId}", s.authenticated(s.handleRevokeToken))
 }
 
 type ctxKey string
 
-const userIDKey ctxKey = "userID"
+const identityKey ctxKey = "identity"
+
+// Identity is the authenticated caller context carried through handlers.
+type Identity struct {
+	UserID    string
+	OrgID     string
+	ActorType string // RB-32 actor_type: user|agent|admin|controller
+}
+
+// resolveBearer accepts either a session JWT or an organization-scoped API
+// token (tenara_ prefix) and resolves both to a full Identity.
+func (s *Service) resolveBearer(r *http.Request) (*Identity, bool) {
+	authz := r.Header.Get("Authorization")
+	if len(authz) < 7 || authz[:7] != "Bearer " {
+		return nil, false
+	}
+	raw := authz[7:]
+	if strings.HasPrefix(raw, apiTokenPrefix) {
+		userID, orgID, resolveErr := s.store.ResolveAPIToken(r.Context(), raw)
+		if resolveErr != nil {
+			return nil, false
+		}
+		return &Identity{UserID: userID, OrgID: orgID, ActorType: "user"}, true
+	}
+	userID, parseErr := s.tokens.Parse(raw)
+	if parseErr != nil {
+		return nil, false
+	}
+	orgID, orgErr := s.store.DefaultOrgForUser(r.Context(), userID)
+	if orgErr != nil {
+		return nil, false
+	}
+	return &Identity{UserID: userID, OrgID: orgID, ActorType: "user"}, true
+}
 
 func (s *Service) authenticated(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token := r.Header.Get("Authorization")
-		if len(token) < 8 || token[:7] != "Bearer " {
-			writeProblem(w, http.StatusUnauthorized, "UNAUTHORIZED", "bearer required")
+		ident, ok := s.resolveBearer(r)
+		if !ok {
+			writeProblem(w, http.StatusUnauthorized, "UNAUTHORIZED", "invalid credentials")
 			return
 		}
-		userID, parseErr := s.tokens.Parse(token[7:])
-		if parseErr != nil {
-			writeProblem(w, http.StatusUnauthorized, "UNAUTHORIZED", "invalid token")
-			return
-		}
-		next(w, r.WithContext(context.WithValue(r.Context(), userIDKey, userID)))
+		next(w, r.WithContext(context.WithValue(r.Context(), identityKey, ident)))
 	}
 }
 
+func identityFrom(r *http.Request) (*Identity, bool) {
+	ident, ok := r.Context().Value(identityKey).(*Identity)
+	return ident, ok && ident != nil
+}
+
 func (s *Service) handleMe(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(userIDKey).(string)
+	ident, ok := identityFrom(r)
 	if !ok {
 		writeProblem(w, http.StatusUnauthorized, "UNAUTHORIZED", "missing identity")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"id": userID})
+	_ = json.NewEncoder(w).Encode(map[string]string{"id": ident.UserID, "org_id": ident.OrgID})
 }
 
 type registerInput struct {
