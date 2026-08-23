@@ -39,9 +39,11 @@ type Handlers struct {
 func New(
 	pool *pgxpool.Pool, gate Gate, baseDomain string, kmsStub *kms.Stub,
 ) *Handlers {
-	return &Handlers{store: NewStore(pool), gate: gate,
+	return &Handlers{
+		store: NewStore(pool), gate: gate,
 		baseDomain: baseDomain, secrets: secrets.New(pool, kmsStub),
-		resolver: net.DefaultResolver}
+		resolver: net.DefaultResolver,
+	}
 }
 
 // SetDNSResolver overrides the TXT lookup source (verification test seam).

@@ -36,8 +36,10 @@ type Spec struct {
 	Version  string                 `json:"version"`
 }
 
-var validTypes = map[string]bool{"frontend": true, "backend": true}
-var validRuntimes = map[string]bool{"node": true, "python": true, "go": true}
+var (
+	validTypes    = map[string]bool{"frontend": true, "backend": true}
+	validRuntimes = map[string]bool{"node": true, "python": true, "go": true}
+)
 
 // Parse strictly decodes and validates an AppSpec payload.
 func Parse(data []byte) (Spec, error) {
