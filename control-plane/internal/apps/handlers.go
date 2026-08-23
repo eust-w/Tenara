@@ -100,6 +100,9 @@ func (h *Handlers) Mount(r chi.Router) {
 	r.Put("/v1/apps/{appId}/spec", h.gate.Authenticated(
 		h.gate.RequireCap(rbac.CapAppCreate,
 			h.gate.Idem(h.gate.Audited("app.spec.override", h.handlePutSpec)))))
+	r.Post("/v1/apps/{appId}/databases", h.gate.Authenticated(
+		h.gate.RequireCap(rbac.CapDatabaseCreate,
+			h.gate.Idem(h.gate.Audited("database.create", h.handleRequestDatabase)))))
 	r.Get("/v1/apps/{appId}/domains", h.gate.RequireCap(rbac.CapAppRead,
 		h.gate.Authenticated(h.handleListDomains)))
 	r.Post("/v1/apps/{appId}/domains", h.gate.Authenticated(
@@ -440,4 +443,24 @@ func (h *Handlers) handleVerifyDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, domain)
+}
+
+func (h *Handlers) handleRequestDatabase(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgOrUnauthorized(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Isolation string `json:"isolation"`
+	}
+	_ = decodeInto(r, &in) // optional body; default shared
+	db, binding, createErr := h.store.RequestDatabase(
+		r.Context(), orgID, chi.URLParam(r, "appId"), in.Isolation)
+	if createErr != nil {
+		mapWriteErr(w, createErr)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"database": db, "binding": binding,
+	})
 }
