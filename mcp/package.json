@@ -4,9 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/http.test.ts"
   },
   "devDependencies": {
+    "@types/node": "^22.20.1",
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0"
   }
 }
