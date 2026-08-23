@@ -1,0 +1,9 @@
+{
+  "title": "Tenara security events",
+  "uid": "tenara-security",
+  "datasource": { "type": "postgres", "uid": "tenara-postgres" },
+  "panels": [
+    { "type": "timeseries", "title": "events over time" },
+    { "type": "table", "title": "recent events" }
+  ]
+}
