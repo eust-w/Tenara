@@ -188,6 +188,10 @@ linters:
         linters:
           - govet
           - gosec
+      # K8s API wire DTO layout mirrors upstream conventions.
+      - path: controllers/internal/build/types\.go$
+        linters:
+          - govet
       # Generated code never lints (oapi-codegen output).
       - path: \.gen\.go$
         linters:
