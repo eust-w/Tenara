@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -29,17 +30,22 @@ type Gate interface {
 
 type Handlers struct {
 	store      *Store
-	secrets    *secrets.Service
+	secrets    *secrets.Service //nolint:fieldalignment // handler singleton; layout irrelevant
 	gate       Gate
 	baseDomain string
+	resolver   DNSResolver
 }
 
 func New(
 	pool *pgxpool.Pool, gate Gate, baseDomain string, kmsStub *kms.Stub,
 ) *Handlers {
 	return &Handlers{store: NewStore(pool), gate: gate,
-		baseDomain: baseDomain, secrets: secrets.New(pool, kmsStub)}
+		baseDomain: baseDomain, secrets: secrets.New(pool, kmsStub),
+		resolver: net.DefaultResolver}
 }
+
+// SetDNSResolver overrides the TXT lookup source (verification test seam).
+func (h *Handlers) SetDNSResolver(r DNSResolver) { h.resolver = r }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -94,6 +100,13 @@ func (h *Handlers) Mount(r chi.Router) {
 	r.Put("/v1/apps/{appId}/spec", h.gate.Authenticated(
 		h.gate.RequireCap(rbac.CapAppCreate,
 			h.gate.Idem(h.gate.Audited("app.spec.override", h.handlePutSpec)))))
+	r.Get("/v1/apps/{appId}/domains", h.gate.RequireCap(rbac.CapAppRead,
+		h.gate.Authenticated(h.handleListDomains)))
+	r.Post("/v1/apps/{appId}/domains", h.gate.Authenticated(
+		h.gate.RequireCap(rbac.CapDomainBind,
+			h.gate.Idem(h.gate.Audited("domain.bind", h.handleAddDomain)))))
+	r.Post("/v1/apps/{appId}/domains/{domainId}/verify", h.gate.Authenticated(
+		h.gate.RequireCap(rbac.CapDomainBind, h.handleVerifyDomain)))
 	r.Get("/v1/apps/{appId}/plan", h.gate.RequireCap(rbac.CapAppRead,
 		h.gate.Authenticated(h.handleGetPlan)))
 	r.Post("/v1/apps/{appId}/deployments", h.gate.Authenticated(
@@ -354,4 +367,77 @@ func (h *Handlers) handleDeploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]string{"id": depID, "state": "PLANNED"})
+}
+
+func (h *Handlers) handleListDomains(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgOrUnauthorized(w, r)
+	if !ok {
+		return
+	}
+	appID := chi.URLParam(r, "appId")
+	if _, getAppErr := h.store.GetApp(r.Context(), orgID, appID); getAppErr != nil {
+		mapWriteErr(w, getAppErr)
+		return
+	}
+	domains, listErr := h.store.listDomains(r.Context(), appID)
+	if listErr != nil {
+		writeProblem(w, http.StatusInternalServerError, "INTERNAL", "list failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, domains)
+}
+
+func (h *Handlers) handleAddDomain(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgOrUnauthorized(w, r)
+	if !ok {
+		return
+	}
+	appID := chi.URLParam(r, "appId")
+	appRow, getErr := h.store.GetApp(r.Context(), orgID, appID)
+	if getErr != nil {
+		mapWriteErr(w, getErr)
+		return
+	}
+	var in struct {
+		Hostname string `json:"hostname"`
+	}
+	if !decodeInto(r, &in) {
+		writeProblem(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "invalid JSON")
+		return
+	}
+	hostname := strings.ToLower(strings.TrimSpace(in.Hostname))
+	var (
+		domain DomainRow
+		addErr error
+	)
+	if hostname == "" {
+		domain, addErr = h.store.AllocateDefaultDomain(
+			r.Context(), appID, appRow.Slug, h.baseDomain)
+	} else {
+		domain, addErr = h.store.AddCustomDomain(r.Context(), appID, hostname)
+	}
+	if addErr != nil {
+		mapWriteErr(w, addErr)
+		return
+	}
+	writeJSON(w, http.StatusCreated, domain)
+}
+
+func (h *Handlers) handleVerifyDomain(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgOrUnauthorized(w, r)
+	if !ok {
+		return
+	}
+	appID := chi.URLParam(r, "appId")
+	if _, getAppErr := h.store.GetApp(r.Context(), orgID, appID); getAppErr != nil {
+		mapWriteErr(w, getAppErr)
+		return
+	}
+	domain, verifyErr := h.store.VerifyCustomDomain(
+		r.Context(), h.resolver, appID, chi.URLParam(r, "domainId"))
+	if verifyErr != nil {
+		mapWriteErr(w, verifyErr)
+		return
+	}
+	writeJSON(w, http.StatusOK, domain)
 }
