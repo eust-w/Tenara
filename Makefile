@@ -7,7 +7,7 @@ GOFUMPT := $(BIN_DIR)/gofumpt
 GOFUMPT_ABS := $(abspath $(GOFUMPT))
 export PATH := $(abspath $(BIN_DIR)):$(PATH)
 
-.PHONY: lint lint-go lint-ts test test-go tools test-mcp-conformance observability-up test-baidu-live poc-all e2e-success-path \
+.PHONY: lint lint-go lint-ts test test-go tools test-mcp-conformance observability-up test-baidu-live poc-all e2e-success-path e2e-negative \
 	dev-up dev-down dev-reset kind-up kind-down generate \
 	e2e-smoke build-images helm-install migrate-up migrate-down
 
@@ -67,6 +67,9 @@ poc-all:
 
 e2e-success-path:
 	cd e2e/scenarios && node success-path.mjs
+
+e2e-negative:
+	cd e2e/scenarios && node negative.mjs
 
 
 
