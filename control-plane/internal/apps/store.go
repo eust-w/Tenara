@@ -249,3 +249,22 @@ func (s *Store) AddEnvironment(ctx context.Context, orgID, appID, envName string
 	}
 	return namespace, insertErr
 }
+
+// UpdateSpec persists the manual AppSpec override (R8) for an app the caller
+// owns; soft-deleted or foreign apps surface as ErrNotFound.
+func (s *Store) UpdateSpec(ctx context.Context, orgID, appID string, raw []byte) error {
+	if !validUUID(appID) {
+		return ErrNotFound
+	}
+	tag, execErr := s.pool.Exec(ctx,
+		`UPDATE applications SET current_spec = $3::jsonb, updated_at = now()
+		 WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`,
+		appID, orgID, string(raw))
+	if execErr != nil {
+		return execErr
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

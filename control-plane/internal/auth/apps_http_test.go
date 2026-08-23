@@ -22,6 +22,47 @@ func TestAppsHTTPAcceptance(t *testing.T) {
 	t.Run("environment lands row and duplicate conflicts", func(t *testing.T) {
 		runEnvironmentFlow(t, ts)
 	})
+	t.Run("manual spec override accepts valid rejects invalid", func(t *testing.T) {
+		runSpecOverride(t, ts)
+	})
+}
+
+func runSpecOverride(t *testing.T, ts *httptest.Server) {
+	jwtS := registerVerifiedUser(t, ts, "t17s")
+	stamp := timeNowUnix()
+	code, body := authedJSON(t, http.MethodPost, ts.URL+"/v1/apps", jwtS,
+		map[string]string{"name": fmt.Sprintf("specapp-%d", stamp)})
+	if code != http.StatusCreated {
+		t.Fatalf("create = %d body=%s", code, body)
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if decodeErr := json.Unmarshal(body, &created); decodeErr != nil {
+		t.Fatal(decodeErr)
+	}
+
+	validSpec := `{"version":"v1","services":{"api":{"type":"backend","runtime":"python","path":"apps/api","port":8000}},"database":{"mongodb":true},"routing":{"/":{"service":"api"}}}`
+	res, _ := authedRaw(t, http.MethodPut, ts.URL+"/v1/apps/"+created.ID+"/spec",
+		jwtS, "", json.RawMessage(validSpec))
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("valid spec = %d, want 204", res.StatusCode)
+	}
+
+	v2Spec := strings.Replace(validSpec, `"v1"`, `"v2"`, 1)
+	resV2, bodyV2 := authedRaw(t, http.MethodPut, ts.URL+"/v1/apps/"+created.ID+"/spec",
+		jwtS, "", json.RawMessage(v2Spec))
+	if resV2.StatusCode != http.StatusUnprocessableEntity ||
+		!strings.Contains(string(bodyV2), "INVALID_SPEC") {
+		t.Fatalf("v2 = %d body=%s, want 422 INVALID_SPEC", resV2.StatusCode, bodyV2)
+	}
+
+	imageSpec := `{"version":"v1","services":{"api":{"type":"backend","runtime":"go","path":".","image":"repo:latest"}}}`
+	resImg, _ := authedRaw(t, http.MethodPut, ts.URL+"/v1/apps/"+created.ID+"/spec",
+		jwtS, "", json.RawMessage(imageSpec))
+	if resImg.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("image spec = %d, want 422", resImg.StatusCode)
+	}
 }
 
 func runQuotaAndCrossOrg(t *testing.T, ts *httptest.Server, jwtA string) {

@@ -3,12 +3,14 @@ package apps
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"tenara/control-plane/internal/appspec"
 	"tenara/control-plane/internal/rbac"
 )
 
@@ -80,6 +82,9 @@ func (h *Handlers) Mount(r chi.Router) {
 	r.Post("/v1/apps/{appId}/environments", h.gate.Authenticated(
 		h.gate.RequireCap(rbac.CapAppCreate,
 			h.gate.Idem(h.gate.Audited("environment.create", h.handleAddEnvironment)))))
+	r.Put("/v1/apps/{appId}/spec", h.gate.Authenticated(
+		h.gate.RequireCap(rbac.CapAppCreate,
+			h.gate.Idem(h.gate.Audited("app.spec.override", h.handlePutSpec)))))
 }
 
 func (h *Handlers) orgOrUnauthorized(w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -224,4 +229,26 @@ func (h *Handlers) handleAddEnvironment(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]string{"namespace_name": namespace})
+}
+
+func (h *Handlers) handlePutSpec(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgOrUnauthorized(w, r)
+	if !ok {
+		return
+	}
+	raw, readErr := io.ReadAll(r.Body)
+	if readErr != nil {
+		writeProblem(w, http.StatusBadRequest, "VALIDATION_FAILED", "unreadable body")
+		return
+	}
+	if _, parseErr := appspec.Parse(raw); parseErr != nil {
+		writeProblem(w, http.StatusUnprocessableEntity, "INVALID_SPEC", parseErr.Error())
+		return
+	}
+	if updateErr := h.store.UpdateSpec(r.Context(), orgID,
+		chi.URLParam(r, "appId"), raw); updateErr != nil {
+		mapWriteErr(w, updateErr)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
