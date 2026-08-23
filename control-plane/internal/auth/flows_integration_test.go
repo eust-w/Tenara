@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"tenara/control-plane/internal/apps"
 	"tenara/control-plane/internal/pgstore"
 )
 
@@ -43,6 +44,8 @@ func newTestServer(t *testing.T) *httptest.Server {
 	svc := NewService(NewStore(pool), NewTokenManager("test-secret-key-32-bytes-long!!"), "http://localhost:8080")
 	r := chi.NewRouter()
 	svc.Mount(r)
+	appsH := apps.New(pool, NewBridge(svc))
+	appsH.Mount(r)
 	return httptest.NewServer(r)
 }
 
