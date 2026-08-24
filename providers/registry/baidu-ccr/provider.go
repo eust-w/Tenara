@@ -13,8 +13,6 @@ import (
 	"tenara/providers/types"
 )
 
-const apiPrefix = "/ccr/v1"
-
 // Config carries the CCR endpoint and credentials from a Secret source.
 type Config struct {
 	Endpoint   string
@@ -45,6 +43,7 @@ func init() {
 	})
 }
 
+//nolint:unparam // body kept for Doer symmetry
 func (p *Provider) call(ctx context.Context, method, path string, body any) ([]byte, error) {
 	var payload []byte
 	if body != nil {
@@ -56,7 +55,7 @@ func (p *Provider) call(ctx context.Context, method, path string, body any) ([]b
 	}
 	status, respBody, err := p.doer.Do(ctx, p.cfg, method, path, payload)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s %s: %v", types.ErrUnavailable, method, path, err)
+		return nil, fmt.Errorf("%w: %s %s: %w", types.ErrUnavailable, method, path, err)
 	}
 	if status >= 400 {
 		return nil, fmt.Errorf("ccr %s %s returned %d", method, path, status)
@@ -96,7 +95,9 @@ func (p *Provider) CheckSignature(ctx context.Context, repo, digest string) (boo
 			Digest string `json:"digest"`
 		} `json:"signatures"`
 	}
-	json.Unmarshal(body, &sigs)
+	if uErr := json.Unmarshal(body, &sigs); uErr != nil {
+		return false, fmt.Errorf("decode signatures: %w", uErr)
+	}
 	for _, s := range sigs.Signatures {
 		if s.Digest == digest {
 			return true, nil

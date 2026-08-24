@@ -35,9 +35,10 @@ func init() {
 
 func (p *Provider) CreateChallengeRecord(ctx context.Context, host, value string) error {
 	status, body, err := p.doer.Do(ctx, &p.cfg, "POST",
-		fmt.Sprintf("/zone/%s/record?host=%s&type=TXT&rdata=%s", p.cfg.ZoneID, host, value), []byte(fmt.Sprintf(`{"rdata":"%s"}`, value)))
+		fmt.Sprintf("/zone/%s/record?host=%s&type=TXT&rdata=%s", p.cfg.ZoneID, host, value),
+		[]byte(fmt.Sprintf(`{"rdata":"%s"}`, value)))
 	if err != nil || status >= 400 {
-		return fmt.Errorf("create TXT %s: status=%d err=%v", host, status, err)
+		return fmt.Errorf("create TXT %s: status=%d err=%w", host, status, err)
 	}
 	_ = body
 	return nil
@@ -58,7 +59,7 @@ func (p *Provider) DeleteChallengeRecord(ctx context.Context, host, value string
 func (p *Provider) Healthz(ctx context.Context) error {
 	status, body, err := p.doer.Do(ctx, &p.cfg, "GET", "/healthz", nil)
 	if err != nil || status >= 400 {
-		return fmt.Errorf("%w: dns healthz status=%d err=%v", types.ErrUnavailable, status, err)
+		return fmt.Errorf("%w: dns healthz status=%d err=%w", types.ErrUnavailable, status, err)
 	}
 	_ = body
 	return nil

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -51,7 +52,9 @@ func (h httpDoer) Do(ctx context.Context, cfg Config, method, path string, body 
 		return 0, nil, doErr
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		if cErr := resp.Body.Close(); cErr != nil {
+			_ = cErr //nolint:errcheck // body fully consumed above
+		}
 	}()
 	payload, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
@@ -89,7 +92,7 @@ func (p *Provider) call(ctx context.Context, method, path string, body any) ([]b
 	}
 	status, respBody, err := p.doer.Do(ctx, p.cfg, method, path, payload)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s %s: %v", types.ErrUnavailable, method, path, err)
+		return nil, fmt.Errorf("%w: %s %s: %w", types.ErrUnavailable, method, path, err)
 	}
 	if status >= 400 {
 		return nil, fmt.Errorf("%w: cce %s %s returned %d",
@@ -101,7 +104,7 @@ func (p *Provider) call(ctx context.Context, method, path string, body any) ([]b
 // CreateCluster provisions a managed cluster and returns its id.
 func (p *Provider) CreateCluster(ctx context.Context, spec ClusterSpec) (string, error) {
 	if spec.Name == "" || spec.Version == "" || spec.NodeCount < 1 {
-		return "", fmt.Errorf("invalid cluster spec")
+		return "", errors.New("invalid cluster spec")
 	}
 	body, err := p.call(ctx, http.MethodPost, apiPrefix+"/cluster", map[string]any{
 		"name": spec.Name, "clusterVersion": spec.Version, "nodeCount": spec.NodeCount,

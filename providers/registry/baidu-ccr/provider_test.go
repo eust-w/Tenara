@@ -41,8 +41,10 @@ func TestResolveDigestReturnsCanonicalSHA(t *testing.T) {
 func TestCheckSignatureMatchesDigest(t *testing.T) {
 	p := New(&Config{Endpoint: "http://ccr.test"}, &testDoer{
 		responses: map[string]fixtureResp{
-			"GET /repositories/acme/app/signatures": {status: 200,
-				body: `{"signatures":[{"digest":"sha256:abc123"}]}`},
+			"GET /repositories/acme/app/signatures": {
+				status: 200,
+				body:   `{"signatures":[{"digest":"sha256:abc123"}]}`,
+			},
 		},
 	})
 	ok, err := p.CheckSignature(context.Background(), "acme/app", "sha256:abc123")

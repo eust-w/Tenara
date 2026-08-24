@@ -4,6 +4,7 @@ package baidudocdb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"tenara/providers/types"
@@ -54,7 +55,7 @@ func (p *Provider) IsolationFor(appID string) string {
 // CreateAppDatabase provisions a scoped DB user inside the shared instance.
 func (p *Provider) CreateAppDatabase(ctx context.Context, appID string) (*types.Credential, error) {
 	if p.IsolationFor(appID) == isolationDedicated {
-		return nil, fmt.Errorf("dedicated instance provisioning requires D2 wiring")
+		return nil, errors.New("dedicated instance provisioning requires D2 wiring")
 	}
 	user := "app_" + appID
 	return &types.Credential{
@@ -66,7 +67,7 @@ func (p *Provider) CreateAppDatabase(ctx context.Context, appID string) (*types.
 // DeleteAppDatabase drops the per-app user; data persists until GC.
 func (p *Provider) DeleteAppDatabase(ctx context.Context, appID string) error {
 	if p.IsolationFor(appID) == isolationDedicated {
-		return fmt.Errorf("dedicated teardown requires D2 wiring")
+		return errors.New("dedicated teardown requires D2 wiring")
 	}
 	return nil
 }

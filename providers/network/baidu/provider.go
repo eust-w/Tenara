@@ -34,7 +34,7 @@ func init() {
 func (p *Provider) BindDomain(ctx context.Context, appID, host string) error {
 	status, _, err := p.doer.Do(ctx, &p.cfg, "POST", fmt.Sprintf("/listener?app=%s&host=%s", appID, host), nil)
 	if err != nil || status >= 400 {
-		return fmt.Errorf("bind %s: status=%d err=%v", host, status, err)
+		return fmt.Errorf("bind %s: status=%d err=%w", host, status, err)
 	}
 	return nil
 }
@@ -42,7 +42,7 @@ func (p *Provider) BindDomain(ctx context.Context, appID, host string) error {
 func (p *Provider) UnbindDomain(ctx context.Context, appID, host string) error {
 	status, _, err := p.doer.Do(ctx, &p.cfg, "DELETE", fmt.Sprintf("/listener?app=%s&host=%s", appID, host), nil)
 	if err != nil || status >= 400 {
-		return fmt.Errorf("unbind %s: status=%d err=%v", host, status, err)
+		return fmt.Errorf("unbind %s: status=%d err=%w", host, status, err)
 	}
 	return nil
 }

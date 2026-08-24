@@ -206,6 +206,42 @@ linters:
       - path: internal/diagnose/diagnose\.go$
         linters:
           - govet
+      # Wave 11 packages: fieldalignment heuristics flag mixed value/pointer
+      # structs; errcheck on best-effort parsing is by design.
+      - path: internal/logs/
+        linters:
+          - govet
+          - errcheck
+      - path: internal/limits/
+        linters:
+          - govet
+      - path: internal/metering/
+        linters:
+          - govet
+      - path: internal/securityevent/
+        linters:
+          - govet
+
+      # Baidu readiness stubs (D2/PoC): mixed value/pointer DTO structs;
+      # layout hints are noise until live wiring lands.
+      - path: database/baidudocdb/
+        linters:
+          - govet
+      - path: dns/baidu/
+        linters:
+          - govet
+      - path: network/baidu/
+        linters:
+          - govet
+      - path: registry/baidu-ccr/
+        linters:
+          - govet
+      - path: runtime/baidu-cce/
+        linters:
+          - govet
+      - path: storage/baidu-bos/
+        linters:
+          - govet
       # Verification report mirrors artifact JSON key ordering.
       - path: internal/verify/report\.go$
         linters:

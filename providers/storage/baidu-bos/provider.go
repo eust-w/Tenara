@@ -53,7 +53,7 @@ func (p *Provider) DeleteAppStorage(ctx context.Context, appID string) error {
 func (p *Provider) Healthz(ctx context.Context) error {
 	status, _, err := p.doer.Do(ctx, &p.cfg, "HEAD", "/", nil)
 	if err != nil || status >= 400 {
-		return fmt.Errorf("bos healthz: status=%d err=%v", status, err)
+		return fmt.Errorf("bos healthz: status=%d err=%w", status, err)
 	}
 	return nil
 }
