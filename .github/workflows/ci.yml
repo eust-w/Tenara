@@ -76,7 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: install pnpm
-        run: npm i -g pnpm@9
+        run: npm i -g pnpm@10
       - uses: actions/setup-node@v5
         with:
           node-version: 24
