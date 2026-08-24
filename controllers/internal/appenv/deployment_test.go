@@ -134,3 +134,22 @@ func TestRenderedIsolatedAttachesGvisor(t *testing.T) {
 		t.Fatalf("sandbox must not break tenant pinning: %v", tolErr)
 	}
 }
+
+func TestRenderedDedicatedPinsExclusivePool(t *testing.T) {
+	dep, err := RenderDeployment("app1", "prod", "ns1", ServiceInput{
+		Name: "web", Image: "repo/img@sha256:aa", Port: 8080, Isolation: IsolationDedicated,
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	spec := dep.Spec.Template.Spec
+	if got := spec.NodeSelector[RoleNodeLabel]; got != DedicatedRoleValue {
+		t.Fatalf("pool = %q, want dedicated", got)
+	}
+	if spec.RuntimeClassName != nil {
+		t.Fatal("dedicated pins pools, not sandboxes")
+	}
+	if tolErr := EnsureNoCrossPoolToleration(&spec); tolErr != nil {
+		t.Fatalf("guard regression: %v", tolErr)
+	}
+}

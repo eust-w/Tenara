@@ -69,7 +69,11 @@ func restrictedPodSpec(s ServiceInput, withProbes bool) corev1.PodSpec {
 		AutomountServiceAccountToken: boolPtr(false),
 		Containers:                   []corev1.Container{container},
 	}
-	ApplyTenantScheduling(&podSpec)
+	if s.Isolation == IsolationDedicated {
+		ApplyDedicatedScheduling(&podSpec)
+	} else {
+		ApplyTenantScheduling(&podSpec)
+	}
 	ApplySandboxClass(&podSpec, s.Isolation)
 	return podSpec
 }

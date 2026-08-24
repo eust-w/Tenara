@@ -54,10 +54,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	if nsErr := r.ensureNamespace(ctx, &ae); nsErr != nil {
 		return ctrl.Result{}, nsErr
 	}
-	if r.Recorder != nil && RequiresUpgradeNotice(ae.Spec.Isolation) {
-		r.Recorder.Event(&ae, corev1.EventTypeWarning, IsolationUpgradeReason,
-			"dedicated isolation requested; enforcement lands with the dedicated-node tier (todo95)")
-	}
 	return ctrl.Result{}, nil
 }
 

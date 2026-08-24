@@ -235,6 +235,10 @@ linters:
       - path: internal/billing/
         linters:
           - govet
+      # Cell registry structs hold maps/mutexes; layout hints only.
+      - path: internal/cells/
+        linters:
+          - govet
 
       # Baidu readiness stubs (D2/PoC): mixed value/pointer DTO structs;
       # layout hints are noise until live wiring lands.
