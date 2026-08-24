@@ -1,0 +1,14 @@
+# D2-P2-1 sandbox runtime classes (todo88). Handlers must exist on
+# tenant-pool nodes (containerd shims runsc / kata); pods requesting an
+# absent class stay Pending — p0-2-runtimeclass.sh proves this gate locally.
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: gvisor
+handler: runsc
+---
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: kata-qemu
+handler: kata-qemu

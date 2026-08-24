@@ -4,8 +4,9 @@ import (
 	"fmt"
 )
 
-// IsolationUpgradeReason marks AppEnvs requesting sandboxing beyond the MVP
-// shared pool; real enforcement lands with P2 (todo88).
+// IsolationUpgradeReason marks AppEnvs whose isolation cannot be honored
+// locally; since todo88 isolated is enforced via RuntimeClass injection and
+// only dedicated waits on the dedicated-node tier (todo95).
 const IsolationUpgradeReason = "IsolationUpgradeRequired"
 
 // ValidateIsolation enforces the RB§17 enum at reconcile time; the CRD schema
@@ -19,9 +20,9 @@ func ValidateIsolation(lvl IsolationLevel) error {
 	}
 }
 
-// RequiresUpgradeNotice reports whether the requested level exceeds MVP
-// shared semantics and therefore must surface an explicit event instead of
-// silently pretending stronger isolation exists locally.
+// RequiresUpgradeNotice reports whether the level still exceeds locally
+// enforced guarantees. Isolated has been enforced through sandbox injection
+// since todo88; dedicated remains gated on the node-tier work (todo95).
 func RequiresUpgradeNotice(lvl IsolationLevel) bool {
-	return lvl == IsolationIsolated || lvl == IsolationDedicated
+	return lvl == IsolationDedicated
 }

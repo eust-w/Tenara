@@ -18,11 +18,11 @@ func TestValidateIsolation(t *testing.T) {
 }
 
 func TestRequiresUpgradeNotice(t *testing.T) {
-	if RequiresUpgradeNotice(IsolationShared) {
-		t.Fatal("shared needs no upgrade notice")
+	if RequiresUpgradeNotice(IsolationShared) || RequiresUpgradeNotice(IsolationIsolated) {
+		t.Fatal("shared/isolated are enforced locally since todo88; no notice")
 	}
-	if !RequiresUpgradeNotice(IsolationIsolated) || !RequiresUpgradeNotice(IsolationDedicated) {
-		t.Fatal("isolated/dedicated must request an upgrade notice")
+	if !RequiresUpgradeNotice(IsolationDedicated) {
+		t.Fatal("dedicated must request an upgrade notice until todo95")
 	}
 }
 

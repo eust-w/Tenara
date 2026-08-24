@@ -118,3 +118,19 @@ func TestGuardRejectsForeignPoolToleration(t *testing.T) {
 		t.Fatal("build-pool toleration on tenant workload must be rejected")
 	}
 }
+
+func TestRenderedIsolatedAttachesGvisor(t *testing.T) {
+	dep, err := RenderDeployment("app1", "prod", "ns1", ServiceInput{
+		Name: "web", Image: "repo/img@sha256:aa", Port: 8080, Isolation: IsolationIsolated,
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	rc := dep.Spec.Template.Spec.RuntimeClassName
+	if rc == nil || *rc != SandboxClassGVisor {
+		t.Fatalf("isolated service must pin %q, got %v", SandboxClassGVisor, rc)
+	}
+	if tolErr := EnsureNoCrossPoolToleration(&dep.Spec.Template.Spec); tolErr != nil {
+		t.Fatalf("sandbox must not break tenant pinning: %v", tolErr)
+	}
+}

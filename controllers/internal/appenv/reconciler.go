@@ -56,7 +56,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 	if r.Recorder != nil && RequiresUpgradeNotice(ae.Spec.Isolation) {
 		r.Recorder.Event(&ae, corev1.EventTypeWarning, IsolationUpgradeReason,
-			"isolation beyond shared requested; real enforcement lands with P2 (todo88)")
+			"dedicated isolation requested; enforcement lands with the dedicated-node tier (todo95)")
 	}
 	return ctrl.Result{}, nil
 }

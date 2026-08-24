@@ -14,10 +14,11 @@ import (
 // ServiceInput is the minimal per-service view required to render a tenant
 // Deployment.
 type ServiceInput struct {
-	Name     string
-	Image    string
-	Port     int32
-	Replicas int32
+	Name      string
+	Image     string
+	Isolation IsolationLevel
+	Port      int32
+	Replicas  int32
 }
 
 // RequireDigestImage enforces digest-pinned references only (R3); :latest is
@@ -85,6 +86,7 @@ func RenderDeployment(appID, env, namespace string, s ServiceInput) (*appsv1.Dep
 	if schedErr := EnsureNoCrossPoolToleration(&podSpec); schedErr != nil {
 		return nil, schedErr
 	}
+	ApplySandboxClass(&podSpec, s.Isolation)
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: s.Name, Namespace: namespace, Labels: labels},
