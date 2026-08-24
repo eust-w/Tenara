@@ -1,15 +1,30 @@
 # Roadmap
 
-## P2(云端档接入点)
+状态基准：执行计划 tenara-agent-paas 已完成（98 个实现行全部交付，
+F1/F2/F4 验收回执 APPROVE）。当前能力总览见 [README](../README.md)，
+需真实基础设施的验收路径见 [live-gates](live-gates.md)。
 
-- **Kyverno admission 引擎**:MVP 明确采用 Kubernetes 内建 Pod Security Standard
-  强制(`pod-security.kubernetes.io/enforce=restricted`,R3)。租户命名空间由
-  app-controller 打标,渲染器一致性单测保证平台产物永不越界。Kyverno 在 P2 接入,
-  用于跨命名空间策略与镜像签名校验联动等高级规则;**MVP 不安装 Kyverno**。
-- **真实沙箱隔离**:isolation=isolated/dedicated 当前仅产生显式
-  `IsolationUpgradeRequired` 事件(workload 行为等同 shared);真实隔离由
-  P2(todo88)接管,本地不建 RuntimeClass、不假装启用 gVisor。
+## 待执行（近期）
 
-## P3
+- **F3 真实手工 QA**：按 live-gates 手册在真实集群栈执行全部在线验收——
+  RB§51 剧本、六项 PoC 云模式、gVisor pod 实测、跨 cell 故障演练、支付回调端到端。
+- **k8s 发布列车升级**：`k8s.io/*` 0.31 → 0.36、`controller-runtime` 0.19 → 0.24
+  属跨代升级工程（Dependabot 已锁定补丁级），需按 upstream 迁移说明分步推进并回归
+  全量断言套件。
 
-- 计费/账单、LLM 兜底分析、平台内自动修复环(MVP 只返回诊断信息给调用方 Agent,RB§28)。
+## 候选（中期）
+
+- **Kyverno admission**：镜像签名校验联动与跨命名空间高级策略；
+  当前基线由内建 Pod Security Standard `restricted` 模式覆盖。
+- **Auto-Repair 接入 LLM 兜底**：`repair.PatchSource` 的 Codex/Claude 真实现，
+  打通「诊断包→补丁生成→重建→复验」闭环的最后一环。
+- **支付通道产品化**：billing Provider 抽象之上的 stripe 类/国内通道真实回调接线。
+
+## 已交付里程碑（摘要）
+
+- 多租户控制面 · rootless 构建供应链（Syft SBOM / Trivy 门禁 / Cosign 签名）
+- MCP 双形态网关（streamable HTTP + stdio）· 用户/管理双控制台
+- isolated（gVisor/Kata）与 dedicated（独占节点池）两档真实隔离
+- Cell 多集群注册路由与故障半径隔离 · Preview Deployments 自动化
+- 计费产品化 · RBAC 七角色矩阵 · 三次硬闸 Auto-Repair 循环
+- 四云 runtime 适配器（baidu/aliyun/tencent/selfhosted）与数据面 Provider 舰队
