@@ -25,10 +25,10 @@ const (
 
 // TokenBucket refills continuously up to its capacity.
 type TokenBucket struct {
+	lastRefill time.Time
 	tokens     float64
 	capacity   float64
 	perMinute  float64
-	lastRefill time.Time
 }
 
 func newTokenBucket(capacity, perMinute float64, now time.Time) *TokenBucket {
@@ -78,9 +78,9 @@ func (r *RateLimiter) Allow(key string, now time.Time) (bool, time.Duration) {
 
 // BuildGate caps concurrent builds per org (R10 free tier: one at a time).
 type BuildGate struct {
-	mu       sync.Mutex
 	inFlight map[string]int
 	limit    int
+	mu       sync.Mutex
 }
 
 func NewBuildGate(limit int) *BuildGate {

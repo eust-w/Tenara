@@ -37,12 +37,12 @@ func TestValidateRejectsUnknownCode(t *testing.T) {
 func TestValidateRejectsMissingTimestampAndBadActor(t *testing.T) {
 	e := validEvent()
 	e.At = time.Time{}
-	if err := Validate(e); err == nil {
+	if vErr := Validate(e); vErr == nil {
 		t.Fatal("missing timestamp must be rejected")
 	}
 	e = validEvent()
 	e.ActorType = "robot"
-	if err := Validate(e); err == nil {
+	if vErr := Validate(e); vErr == nil {
 		t.Fatal("bad actor type must be rejected")
 	}
 }

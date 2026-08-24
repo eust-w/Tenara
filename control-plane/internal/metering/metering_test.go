@@ -7,11 +7,11 @@ import (
 )
 
 type fakeProm struct {
-	cpuValue    float64
-	cpuErr      error
-	memValue    float64
-	memErr      error
 	seenQueries []string
+	cpuErr      error
+	memErr      error
+	cpuValue    float64
+	memValue    float64
 }
 
 func (f *fakeProm) Scalar(query string) (float64, error) {

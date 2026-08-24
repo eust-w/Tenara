@@ -6,6 +6,7 @@ package logs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,7 +45,7 @@ func (q Query) selector() string {
 // BuildURL renders the Loki range-query endpoint for the scoped selector.
 func (q Query) BuildURL(lokiBase string) (string, error) {
 	if q.AppID == "" {
-		return "", fmt.Errorf("refusing log query without app scope")
+		return "", errors.New("refusing log query without app scope")
 	}
 	if !q.Source.valid() {
 		return "", fmt.Errorf("invalid log source %q", q.Source)
@@ -63,8 +64,8 @@ func (q Query) BuildURL(lokiBase string) (string, error) {
 
 // LogLine is one normalized log entry with its nanosecond timestamp.
 type LogLine struct {
-	TimestampNano int64
 	Text          string
+	TimestampNano int64
 }
 
 // ParseLokiResponse flattens Loki's stream/value pairs into ordered lines.
@@ -108,7 +109,9 @@ func Fetch(ctx context.Context, client *http.Client, lokiURL string) ([]LogLine,
 		return nil, fmt.Errorf("loki unreachable: %w", err)
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		if cErr := resp.Body.Close(); cErr != nil {
+			_ = cErr //nolint:staticcheck // body fully consumed; close error is benign
+		}
 	}()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("loki status %d", resp.StatusCode)

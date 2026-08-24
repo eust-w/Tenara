@@ -23,8 +23,8 @@ type UsageRecord struct {
 
 // SampleError marks one failed dimension while others still succeed.
 type SampleError struct {
-	Resource string
 	Err      error
+	Resource string
 }
 
 func (e *SampleError) Error() string {

@@ -9,7 +9,7 @@ var base = time.Unix(1700000000, 0)
 
 func TestTokenBudgetExhaustsThenRefills(t *testing.T) {
 	rl := NewRateLimiter(3, 3)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if ok, _ := rl.Allow("tok", base.Add(time.Duration(i)*time.Second)); !ok {
 			t.Fatalf("request %d must pass within budget", i+1)
 		}

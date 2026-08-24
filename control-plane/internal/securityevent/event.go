@@ -64,5 +64,3 @@ func Validate(e Event) error {
 	}
 	return nil
 }
-
-func (s Severity) severity() Severity { return s }
