@@ -12,14 +12,34 @@ updates:
     directory: /controllers
     schedule:
       interval: weekly
-  - package-ecosystem: gomod
-    directory: /analyzer
-    schedule:
-      interval: weekly
+    groups:
+      k8s-stack:
+        patterns:
+          - "k8s.io/*"
+          - "sigs.k8s.io/*"
+    ignore:
+      - dependency-name: "k8s.io/*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "sigs.k8s.io/controller-runtime"
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: gomod
     directory: /providers
     schedule:
       interval: weekly
+    groups:
+      k8s-stack:
+        patterns:
+          - "k8s.io/*"
+          - "sigs.k8s.io/*"
+    ignore:
+      - dependency-name: "k8s.io/*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "sigs.k8s.io/controller-runtime"
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: npm
     directory: /
     schedule:
