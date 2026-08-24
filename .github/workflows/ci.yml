@@ -22,6 +22,11 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      mailhog:
+        image: mailhog/mailhog:v1.0.1
+        ports:
+          - 1025:1025
+          - 8025:8025
     strategy:
       fail-fast: false
       matrix:
