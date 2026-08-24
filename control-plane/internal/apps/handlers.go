@@ -74,6 +74,8 @@ func mapWriteErr(w http.ResponseWriter, err error) {
 		writeProblem(w, http.StatusPaymentRequired, "QUOTA_EXCEEDED", err.Error())
 	case errors.Is(err, ErrConflict):
 		writeProblem(w, http.StatusConflict, "CONFLICT", err.Error())
+	case errors.Is(err, ErrUnsupportedKind):
+		writeProblem(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 	default:
 		writeProblem(w, http.StatusInternalServerError, "INTERNAL", "storage error")
 	}
@@ -453,11 +455,12 @@ func (h *Handlers) handleRequestDatabase(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var in struct {
+		Kind      string `json:"kind"`
 		Isolation string `json:"isolation"`
 	}
-	_ = decodeInto(r, &in) // optional body; default shared
+	_ = decodeInto(r, &in) // optional body; default mongo/shared
 	db, binding, createErr := h.store.RequestDatabase(
-		r.Context(), orgID, chi.URLParam(r, "appId"), in.Isolation)
+		r.Context(), orgID, chi.URLParam(r, "appId"), in.Kind, in.Isolation)
 	if createErr != nil {
 		mapWriteErr(w, createErr)
 		return

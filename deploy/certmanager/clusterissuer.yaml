@@ -1,0 +1,17 @@
+# tenara-acme ClusterIssuer (D2-P2-2). Install cert-manager first:
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+# Staging by default; switch server to acme-v02 for production issuance.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: tenara-acme
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    # TODO(ops): set the real contact address before live issuance.
+    email: ops@example.invalid
+    privateKeySecretRef:
+      name: tenara-acme-account-key
+    solvers:
+      - http01:
+          ingress: {}

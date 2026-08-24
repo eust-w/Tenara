@@ -3,19 +3,47 @@ package apps
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
 
-// RequestDatabase records the desired database (RB-19) without touching any
-// real datastore: provisioning is delegated to the database-controller
-// (todo49). Repeat requests for the same type merge idempotently.
+// Binding kinds accepted by database.create (RB§19): mongo plus the P2
+// product face for cache and object storage (todo89, D2-P2-2).
+const (
+	KindMongo   = "mongodb"
+	KindRedis   = "redis"
+	KindStorage = "storage"
+)
+
+// ErrUnsupportedKind rejects binding kinds outside the supported set.
+var ErrUnsupportedKind = errors.New("unsupported database kind")
+
+func normalizeKind(kind string) (string, error) {
+	switch kind {
+	case "":
+		return KindMongo, nil
+	case KindMongo, KindRedis, KindStorage:
+		return kind, nil
+	default:
+		return "", fmt.Errorf("%w: %q", ErrUnsupportedKind, kind)
+	}
+}
+
+// RequestDatabase records the desired binding (RB-19) without touching any
+// real datastore: provisioning is delegated to the data-plane controllers.
+// Repeat requests for the same kind merge idempotently; different kinds own
+// independent rows.
 func (s *Store) RequestDatabase(
-	ctx context.Context, orgID, appID, isolation string,
+	ctx context.Context, orgID, appID, kind, isolation string,
 ) (DatabaseRow, BindingRow, error) {
 	if _, getAppErr := s.GetApp(ctx, orgID, appID); getAppErr != nil {
 		return DatabaseRow{}, BindingRow{}, getAppErr
+	}
+	normalized, kindErr := normalizeKind(kind)
+	if kindErr != nil {
+		return DatabaseRow{}, BindingRow{}, kindErr
 	}
 	if isolation != "shared" && isolation != "dedicated" {
 		isolation = "shared"
@@ -23,15 +51,15 @@ func (s *Store) RequestDatabase(
 
 	var db DatabaseRow
 	selectErr := s.pool.QueryRow(ctx,
-		`SELECT id::text, state FROM databases WHERE app_id = $1 AND type = 'mongodb'`,
-		appID).Scan(&db.ID, &db.State)
+		`SELECT id::text, state FROM databases WHERE app_id = $1 AND type = $2`,
+		appID, normalized).Scan(&db.ID, &db.State)
 	switch {
 	case errors.Is(selectErr, pgx.ErrNoRows):
 		insertErr := s.pool.QueryRow(ctx,
 			`INSERT INTO databases (app_id, type, isolation)
-			 VALUES ($1, 'mongodb', $2)
+			 VALUES ($1, $2, $3)
 			 RETURNING id::text, app_id::text, type, isolation, state`,
-			appID, isolation).
+			appID, normalized, isolation).
 			Scan(&db.ID, &db.AppID, &db.Type, &db.Isolation, &db.State)
 		if insertErr != nil {
 			return DatabaseRow{}, BindingRow{}, insertErr

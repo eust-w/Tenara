@@ -42,3 +42,74 @@ func TestDatabasesHTTP(t *testing.T) {
 		}
 	})
 }
+
+func TestDatabasesMultiKindHTTP(t *testing.T) {
+	ts := newTestServer(t)
+	jwt := registerVerifiedUser(t, ts, "t22")
+	stamp := timeNowUnix()
+	appID := createNamedApp(t, ts, jwt, fmt.Sprintf("dbmulti-%d", stamp))
+
+	t.Run("redis and storage kinds are distinct bindings", func(t *testing.T) {
+		post := func(kind string) (int, []byte) {
+			return authedJSON(t, http.MethodPost,
+				ts.URL+"/v1/apps/"+appID+"/databases", jwt,
+				map[string]string{"kind": kind})
+		}
+		codeR, bodyR := post("redis")
+		if codeR != http.StatusCreated {
+			t.Fatalf("redis = %d body=%s", codeR, bodyR)
+		}
+		var red struct {
+			Database struct {
+				ID   string `json:"id"`
+				Type string `json:"type"`
+			} `json:"database"`
+		}
+		if decodeErr := json.Unmarshal(bodyR, &red); decodeErr != nil {
+			t.Fatal(decodeErr)
+		}
+		if red.Database.Type != "redis" || red.Database.ID == "" {
+			t.Fatalf("redis row wrong: %+v", red.Database)
+		}
+		codeS, bodyS := post("storage")
+		if codeS != http.StatusCreated {
+			t.Fatalf("storage = %d", codeS)
+		}
+		var sto struct {
+			Database struct {
+				ID   string `json:"id"`
+				Type string `json:"type"`
+			} `json:"database"`
+		}
+		if decodeErr := json.Unmarshal(bodyS, &sto); decodeErr != nil {
+			t.Fatal(decodeErr)
+		}
+		if sto.Database.Type != "storage" || sto.Database.ID == red.Database.ID {
+			t.Fatalf("storage must be its own row: %+v vs %+v", sto.Database, red.Database)
+		}
+		codeR2, bodyR2 := post("redis")
+		if codeR2 != http.StatusCreated {
+			t.Fatalf("redis repeat = %d", codeR2)
+		}
+		var red2 struct {
+			Database struct {
+				ID string `json:"id"`
+			} `json:"database"`
+		}
+		if decodeErr := json.Unmarshal(bodyR2, &red2); decodeErr != nil {
+			t.Fatal(decodeErr)
+		}
+		if red2.Database.ID != red.Database.ID {
+			t.Fatalf("redis repeat must merge: %q vs %q", red2.Database.ID, red.Database.ID)
+		}
+	})
+
+	t.Run("unsupported kind rejected with 400", func(t *testing.T) {
+		codeX, bodyX := authedJSON(t, http.MethodPost,
+			ts.URL+"/v1/apps/"+appID+"/databases", jwt,
+			map[string]string{"kind": "oracle"})
+		if codeX != http.StatusBadRequest {
+			t.Fatalf("oracle = %d body=%s", codeX, bodyX)
+		}
+	})
+}

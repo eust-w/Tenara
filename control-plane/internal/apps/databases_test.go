@@ -36,7 +36,7 @@ func TestDatabaseRequestLifecycle(t *testing.T) {
 		runStubCallbackReady(t, store, pool, ctx, orgA, appID)
 	})
 	t.Run("isolation upgrade merges on existing row", func(t *testing.T) {
-		db, _, reqErr := store.RequestDatabase(ctx, orgA, appID, "dedicated")
+		db, _, reqErr := store.RequestDatabase(ctx, orgA, appID, "mongodb", "dedicated")
 		if reqErr != nil {
 			t.Fatal(reqErr)
 		}
@@ -50,7 +50,7 @@ func runCreatePending(
 	t *testing.T, store *Store, ctx context.Context, orgA, appID string,
 ) {
 	t.Helper()
-	db, binding, createErr := store.RequestDatabase(ctx, orgA, appID, "shared")
+	db, binding, createErr := store.RequestDatabase(ctx, orgA, appID, "mongodb", "shared")
 	if createErr != nil {
 		t.Fatal(createErr)
 	}
@@ -67,7 +67,7 @@ func runRepeatMerge(
 	ctx context.Context, orgA, appID string,
 ) {
 	t.Helper()
-	db2, b2, reqErr := store.RequestDatabase(ctx, orgA, appID, "shared")
+	db2, b2, reqErr := store.RequestDatabase(ctx, orgA, appID, "mongodb", "shared")
 	if reqErr != nil {
 		t.Fatal(reqErr)
 	}
