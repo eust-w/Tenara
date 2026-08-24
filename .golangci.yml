@@ -226,6 +226,11 @@ linters:
       - path: internal/previews/
         linters:
           - govet
+      # Repair-loop DTOs and test fakes: heuristic layout hints only,
+      # no packing-critical structures here.
+      - path: internal/repair/
+        linters:
+          - govet
 
       # Baidu readiness stubs (D2/PoC): mixed value/pointer DTO structs;
       # layout hints are noise until live wiring lands.
