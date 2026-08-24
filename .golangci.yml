@@ -260,6 +260,16 @@ linters:
       - path: storage/baidu-bos/
         linters:
           - govet
+      # Multicloud runtime stubs (todo96): same DTO layout-noise family.
+      - path: runtime/aliyun-ack/
+        linters:
+          - govet
+      - path: runtime/tencent-tke/
+        linters:
+          - govet
+      - path: runtime/selfhosted/
+        linters:
+          - govet
       # Verification report mirrors artifact JSON key ordering.
       - path: internal/verify/report\.go$
         linters:
