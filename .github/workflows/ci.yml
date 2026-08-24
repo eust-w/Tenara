@@ -32,7 +32,7 @@ jobs:
       matrix:
         module: [control-plane, controllers, analyzer, builder, verifier, providers]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
         with:
           go-version: "1.26"
@@ -56,7 +56,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
         with:
           go-version: "1.26"
@@ -74,7 +74,7 @@ jobs:
   node:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: install pnpm
         run: npm i -g pnpm@10
       - uses: actions/setup-node@v5
