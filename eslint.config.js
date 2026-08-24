@@ -27,7 +27,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["e2e/mcp/**/*.mjs"],
+    files: ["e2e/mcp/**/*.mjs", "e2e/scenarios/**/*.mjs"],
     languageOptions: {
       globals: {
         URL: "readonly",

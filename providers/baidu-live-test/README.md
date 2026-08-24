@@ -6,11 +6,11 @@
 
 设置以下环境变量后 `make test-baidu-live` 一键执行:
 
-| 变量 | 说明 |
-|------|------|
-| `TENARA_BAIDU_ACCESS_KEY` | 百度云 AK |
-| `TENARA_BAIDU_SECRET_KEY` | 百度云 SK |
-| `TENARA_BAIDU_REGION` | 区域(如 bj) |
+| 变量                      | 说明        |
+| ------------------------- | ----------- |
+| `TENARA_BAIDU_ACCESS_KEY` | 百度云 AK   |
+| `TENARA_BAIDU_SECRET_KEY` | 百度云 SK   |
+| `TENARA_BAIDU_REGION`     | 区域(如 bj) |
 
 ## Secret 注入规范
 
