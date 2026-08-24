@@ -21,6 +21,7 @@ const (
 	CapAdminQuotaManage  Capability = "admin:quota:manage"
 	CapAdminClusterRead  Capability = "admin:cluster:read"
 	CapAdminSecurityRead Capability = "admin:security:read"
+	CapBillingManage     Capability = "billing:manage"
 )
 
 type Role string
@@ -28,7 +29,11 @@ type Role string
 const (
 	RolePlatformAdmin  Role = "platform_admin"
 	RoleWorkspaceAdmin Role = "workspace_admin"
+	RoleDeveloper      Role = "developer"
 	RoleMember         Role = "member"
+	RoleViewer         Role = "viewer"
+	RoleBillingAdmin   Role = "billing_admin"
+	RoleSecurityAdmin  Role = "security_admin"
 )
 
 // AllCapabilities lists every capability in RB order.
@@ -40,6 +45,15 @@ func AllCapabilities() []Capability {
 		CapDomainBind,
 		CapMemberInvite,
 		CapAdminUserManage, CapAdminQuotaManage, CapAdminClusterRead, CapAdminSecurityRead,
+		CapBillingManage,
+	}
+}
+
+// AllRoles lists every role in descending privilege order.
+func AllRoles() []Role {
+	return []Role{
+		RolePlatformAdmin, RoleWorkspaceAdmin, RoleDeveloper, RoleMember,
+		RoleViewer, RoleBillingAdmin, RoleSecurityAdmin,
 	}
 }
 
@@ -57,6 +71,28 @@ var roleCapabilities = map[Role]map[Capability]struct{}{
 		CapDatabaseCreate,
 		CapSecretWrite,
 		CapDomainBind,
+	),
+	// developer ships and cleans up: member plus lifecycle deletions.
+	RoleDeveloper: set(
+		CapAppCreate, CapAppRead, CapAppDeploy, CapAppRollback, CapAppDelete,
+		CapDatabaseCreate, CapDatabaseDelete,
+		CapSecretWrite,
+		CapDomainBind,
+	),
+	// viewer is strictly read-only observability.
+	RoleViewer: set(
+		CapAppRead,
+	),
+	// billing_admin owns spend: plan tiers and invoices, nothing else.
+	RoleBillingAdmin: set(
+		CapAppRead,
+		CapBillingManage,
+	),
+	// security_admin reviews the incident surface; gated secret:reveal
+	// stays with workspace admins.
+	RoleSecurityAdmin: set(
+		CapAppRead,
+		CapAdminSecurityRead,
 	),
 }
 
