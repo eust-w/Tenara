@@ -20,6 +20,7 @@ import (
 	"tenara/control-plane/internal/httpapi"
 	"tenara/control-plane/internal/httpx"
 	"tenara/control-plane/internal/pgstore"
+	"tenara/control-plane/internal/previews"
 )
 
 func main() {
@@ -70,25 +71,18 @@ func main() {
 		}
 	}
 
-	router.Post("/v1/analyze", func(w http.ResponseWriter, r *http.Request) {
-		var in struct {
-			RepoPath string `json:"repo_path"`
-		}
-		if decodeErr := json.NewDecoder(r.Body).Decode(&in); decodeErr != nil ||
-			strings.TrimSpace(in.RepoPath) == "" {
-			http.Error(w, "repo_path required", http.StatusBadRequest)
-			return
-		}
-		result, analyzeErr := analyzer.AnalyzeLocal(in.RepoPath, "127.0.0.1.nip.io")
-		if analyzeErr != nil {
-			http.Error(w, analyzeErr.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if _, writeErr := w.Write(result); writeErr != nil {
-			return
-		}
-	})
+	router.Post("/v1/analyze", handleAnalyze())
+
+	// Preview deployments webhook (todo90): signature-verified pull_request
+	// events drive preview-pr-{n} environments; provisioning effects attach
+	// once the GitHub App registration lands (design-doc dependency gate).
+	if whSecret := os.Getenv("GITHUB_WEBHOOK_SECRET"); whSecret != "" {
+		router.Post("/v1/webhooks/github", (&previews.Handler{
+			Secret: whSecret,
+			Guard:  previews.NewReplayGuard(10 * time.Minute),
+		}).ServeHTTP)
+		log.Info("github preview webhook mounted")
+	}
 
 	router.NotFound(httpapi.Handler().ServeHTTP)
 
@@ -111,5 +105,28 @@ func main() {
 	log.Info("control plane listening", zap.String("port", cfg.Port))
 	if listenErr := srv.ListenAndServe(); !errors.Is(listenErr, http.ErrServerClosed) {
 		log.Fatal("server error", zap.Error(listenErr))
+	}
+}
+
+// handleAnalyze serves POST /v1/analyze: repo path -> analysis JSON.
+func handleAnalyze() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			RepoPath string `json:"repo_path"`
+		}
+		if decodeErr := json.NewDecoder(r.Body).Decode(&in); decodeErr != nil ||
+			strings.TrimSpace(in.RepoPath) == "" {
+			http.Error(w, "repo_path required", http.StatusBadRequest)
+			return
+		}
+		result, analyzeErr := analyzer.AnalyzeLocal(in.RepoPath, "127.0.0.1.nip.io")
+		if analyzeErr != nil {
+			http.Error(w, analyzeErr.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if _, writeErr := w.Write(result); writeErr != nil {
+			return
+		}
 	}
 }

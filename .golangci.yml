@@ -221,6 +221,11 @@ linters:
       - path: internal/securityevent/
         linters:
           - govet
+      # Previews webhook DTOs mix string/pointer transport payloads;
+      # layout hints are noise for a thin receiver shim.
+      - path: internal/previews/
+        linters:
+          - govet
 
       # Baidu readiness stubs (D2/PoC): mixed value/pointer DTO structs;
       # layout hints are noise until live wiring lands.
