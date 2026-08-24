@@ -32,8 +32,8 @@ jobs:
       matrix:
         module: [control-plane, controllers, analyzer, builder, verifier, providers]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.25"
           cache-dependency-path: "**/go.sum"
@@ -53,11 +53,31 @@ jobs:
           go vet ./...
           go test ./... -count=1
 
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache-dependency-path: "**/go.sum"
+      - name: install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh |
+            sh -s -- -b "$(go env GOPATH)/bin" v2.13.1
+      - name: run per-module
+        run: |
+          set -e
+          for m in control-plane controllers analyzer builder verifier providers; do
+            echo "== $m";
+            (cd "$m" && "$(go env GOPATH)/bin/golangci-lint" run ./...);
+          done
+
   node:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - name: install pnpm

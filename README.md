@@ -1,5 +1,7 @@
 # Tenara
 
+[![ci](https://github.com/eust-w/Tenara/actions/workflows/ci.yml/badge.svg)](https://github.com/eust-w/Tenara/actions/workflows/ci.yml)
+
 Tenara 是一个「对 AI 编程助手说话就能上线应用」的多租户托管平台：用户对 Codex/Claude 说"帮我把这个项目上线"，平台自动分析代码、构建镜像、创建带独立数据库、密钥、域名和资源配额的隔离运行环境。
 
 ## 架构总览

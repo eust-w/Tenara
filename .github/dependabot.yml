@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /control-plane
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /controllers
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /analyzer
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /providers
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
