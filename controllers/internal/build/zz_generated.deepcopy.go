@@ -69,10 +69,10 @@ func (in *Build) DeepCopy() *Build {
 
 // DeepCopyObject returns a deep copy as runtime.Object.
 func (in *Build) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
+	if in == nil {
+		return nil
 	}
-	return nil
+	return in.DeepCopy()
 }
 
 // DeepCopyInto copies the receiver into out.
@@ -100,8 +100,8 @@ func (in *BuildList) DeepCopy() *BuildList {
 
 // DeepCopyObject returns a deep copy as runtime.Object.
 func (in *BuildList) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
+	if in == nil {
+		return nil
 	}
-	return nil
+	return in.DeepCopy()
 }

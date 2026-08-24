@@ -55,10 +55,10 @@ func (in *DatabaseBinding) DeepCopy() *DatabaseBinding {
 
 // DeepCopyObject returns a deep copy as runtime.Object.
 func (in *DatabaseBinding) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
+	if in == nil {
+		return nil
 	}
-	return nil
+	return in.DeepCopy()
 }
 
 // DeepCopyInto copies the receiver into out.
@@ -86,8 +86,8 @@ func (in *DatabaseBindingList) DeepCopy() *DatabaseBindingList {
 
 // DeepCopyObject returns a deep copy as runtime.Object.
 func (in *DatabaseBindingList) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
+	if in == nil {
+		return nil
 	}
-	return nil
+	return in.DeepCopy()
 }

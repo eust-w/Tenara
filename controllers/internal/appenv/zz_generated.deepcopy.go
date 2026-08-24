@@ -58,10 +58,10 @@ func (in *AppEnv) DeepCopy() *AppEnv {
 
 // DeepCopyObject returns a deep copy as runtime.Object.
 func (in *AppEnv) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
+	if in == nil {
+		return nil
 	}
-	return nil
+	return in.DeepCopy()
 }
 
 // DeepCopyInto copies the receiver into out.
@@ -89,8 +89,8 @@ func (in *AppEnvList) DeepCopy() *AppEnvList {
 
 // DeepCopyObject returns a deep copy as runtime.Object.
 func (in *AppEnvList) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
+	if in == nil {
+		return nil
 	}
-	return nil
+	return in.DeepCopy()
 }
