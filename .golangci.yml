@@ -231,6 +231,10 @@ linters:
       - path: internal/repair/
         linters:
           - govet
+      # Billing plan/invoice DTOs: heuristic layout hints only.
+      - path: internal/billing/
+        linters:
+          - govet
 
       # Baidu readiness stubs (D2/PoC): mixed value/pointer DTO structs;
       # layout hints are noise until live wiring lands.
