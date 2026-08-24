@@ -54,12 +54,8 @@ type AppEnv struct {
 	Status AppEnvStatus `json:"status,omitempty"`
 }
 
-func (*AppEnv) DeepCopyObject() runtime.Object { return nil }
-
 type AppEnvList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []AppEnv `json:"items"`
 }
-
-func (*AppEnvList) DeepCopyObject() runtime.Object { return nil }

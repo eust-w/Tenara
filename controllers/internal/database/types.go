@@ -46,12 +46,8 @@ type DatabaseBinding struct {
 	Status DatabaseBindingStatus `json:"status,omitempty"`
 }
 
-func (*DatabaseBinding) DeepCopyObject() runtime.Object { return nil }
-
 type DatabaseBindingList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []DatabaseBinding `json:"items"`
 }
-
-func (*DatabaseBindingList) DeepCopyObject() runtime.Object { return nil }
