@@ -8,6 +8,20 @@ on:
 jobs:
   go:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_USER: tenara
+          POSTGRES_PASSWORD: tenara_pg_dev
+          POSTGRES_DB: tenara
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U tenara -d tenara"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     strategy:
       fail-fast: false
       matrix:
