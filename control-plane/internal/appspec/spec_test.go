@@ -73,3 +73,53 @@ func TestParseTableDriven(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkerAndCronServiceTypes(t *testing.T) {
+	base := func(typ, extra string) string {
+		return `{"version":"v1","services":{"svc":{"type":"` + typ +
+			`","runtime":"node"` + extra + `}}}`
+	}
+	if _, pErr := Parse([]byte(base(TypeWorker, ""))); pErr != nil {
+		t.Fatalf("worker without path must pass: %v", pErr)
+	}
+	if _, pErr := Parse([]byte(base(TypeCron, `,"schedule":"*/5 * * * *"`))); pErr != nil {
+		t.Fatalf("cron good schedule: %v", pErr)
+	}
+	for _, bad := range []string{
+		base(TypeCron, `,"schedule":"61 * * * *"`),
+		base(TypeCron, `,"schedule":"* * * *"`),
+		base(TypeCron, ""),
+	} {
+		if _, pErr := Parse([]byte(bad)); pErr == nil {
+			t.Fatalf("must reject: %s", bad)
+		}
+	}
+	if _, pErr := Parse([]byte(base(TypeBackend, `,"path":"/api","port":8080`))); pErr != nil {
+		t.Fatalf("web-kind regression: %v", pErr)
+	}
+	routed := `{"version":"v1","services":{` +
+		`"w":{"type":"worker","runtime":"go"},` +
+		`"f":{"type":"frontend","runtime":"node","path":"/"}},` +
+		`"routing":{"r":{"service":"w"}}}`
+	if _, pErr := Parse([]byte(routed)); pErr == nil {
+		t.Fatal("routing to worker must fail")
+	}
+}
+
+func TestValidateSchedule(t *testing.T) {
+	for _, okExpr := range []string{
+		"* * * * *", "0 9 * * 1-5", "30 2 1,15 * *", "*/10 * * * *", "0 0 */2 * 0",
+	} {
+		if err := ValidateSchedule(okExpr); err != nil {
+			t.Fatalf("%q: %v", okExpr, err)
+		}
+	}
+	for _, badExpr := range []string{
+		"* * * *", "* * * * * *", "60 * * * *", "* 24 * * *",
+		"a * * * *", "1-0 * * * *", "*/0 * * * *", "5-40 * * * 8",
+	} {
+		if err := ValidateSchedule(badExpr); err == nil {
+			t.Fatalf("%q must fail", badExpr)
+		}
+	}
+}

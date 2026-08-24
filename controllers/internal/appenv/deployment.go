@@ -17,6 +17,7 @@ type ServiceInput struct {
 	Name      string
 	Image     string
 	Isolation IsolationLevel
+	Schedule  string
 	Port      int32
 	Replicas  int32
 }
@@ -44,6 +45,35 @@ func tcpProbe(port int32) *corev1.Probe {
 	}
 }
 
+// restrictedPodSpec assembles the RB§15-hardened pod spec shared by web
+// Deployments and CronJob job templates; TCP ports/probes attach only when
+// withProbes is set (cron workloads speak schedules, not HTTP).
+func restrictedPodSpec(s ServiceInput, withProbes bool) corev1.PodSpec {
+	container := corev1.Container{
+		Name:  s.Name,
+		Image: s.Image,
+		SecurityContext: &corev1.SecurityContext{
+			RunAsNonRoot:             boolPtr(true),
+			AllowPrivilegeEscalation: boolPtr(false),
+			ReadOnlyRootFilesystem:   boolPtr(true),
+			Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+			SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+		},
+	}
+	if withProbes {
+		container.Ports = []corev1.ContainerPort{{ContainerPort: s.Port}}
+		container.ReadinessProbe = tcpProbe(s.Port)
+		container.LivenessProbe = tcpProbe(s.Port)
+	}
+	podSpec := corev1.PodSpec{
+		AutomountServiceAccountToken: boolPtr(false),
+		Containers:                   []corev1.Container{container},
+	}
+	ApplyTenantScheduling(&podSpec)
+	ApplySandboxClass(&podSpec, s.Isolation)
+	return podSpec
+}
+
 // RenderDeployment renders one RB§15-restricted Deployment for a service;
 // non-digest images are refused before anything is built.
 func RenderDeployment(appID, env, namespace string, s ServiceInput) (*appsv1.Deployment, error) {
@@ -63,30 +93,10 @@ func RenderDeployment(appID, env, namespace string, s ServiceInput) (*appsv1.Dep
 		"app":          s.Name,
 	}
 
-	container := corev1.Container{
-		Name:  s.Name,
-		Image: s.Image,
-		Ports: []corev1.ContainerPort{{ContainerPort: s.Port}},
-		SecurityContext: &corev1.SecurityContext{
-			RunAsNonRoot:             boolPtr(true),
-			AllowPrivilegeEscalation: boolPtr(false),
-			ReadOnlyRootFilesystem:   boolPtr(true),
-			Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
-			SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
-		},
-		ReadinessProbe: tcpProbe(s.Port),
-		LivenessProbe:  tcpProbe(s.Port),
-	}
-
-	podSpec := corev1.PodSpec{
-		AutomountServiceAccountToken: boolPtr(false),
-		Containers:                   []corev1.Container{container},
-	}
-	ApplyTenantScheduling(&podSpec)
+	podSpec := restrictedPodSpec(s, true)
 	if schedErr := EnsureNoCrossPoolToleration(&podSpec); schedErr != nil {
 		return nil, schedErr
 	}
-	ApplySandboxClass(&podSpec, s.Isolation)
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: s.Name, Namespace: namespace, Labels: labels},

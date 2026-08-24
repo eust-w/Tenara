@@ -15,10 +15,11 @@ import (
 var ErrInvalidSpec = errors.New("invalid appspec")
 
 type ServiceDef struct {
-	Type    string `json:"type"`
-	Runtime string `json:"runtime"`
-	Path    string `json:"path"`
-	Port    int    `json:"port,omitempty"`
+	Type     string `json:"type"`
+	Runtime  string `json:"runtime"`
+	Path     string `json:"path"`
+	Schedule string `json:"schedule,omitempty"`
+	Port     int    `json:"port,omitempty"`
 }
 
 type DatabaseDef struct {
@@ -36,10 +37,24 @@ type Spec struct {
 	Version  string                 `json:"version"`
 }
 
+// Service kinds (todo91): web kinds take HTTP paths and routes; worker runs
+// as a long-lived Deployment without any HTTPRoute; cron maps onto a CronJob
+// driven by its five-field schedule.
+const (
+	TypeFrontend = "frontend"
+	TypeBackend  = "backend"
+	TypeWorker   = "worker"
+	TypeCron     = "cron"
+)
+
 var (
-	validTypes    = map[string]bool{"frontend": true, "backend": true}
+	validTypes = map[string]bool{
+		TypeFrontend: true, TypeBackend: true, TypeWorker: true, TypeCron: true,
+	}
 	validRuntimes = map[string]bool{"node": true, "python": true, "go": true}
 )
+
+func isHTTPType(t string) bool { return t == TypeFrontend || t == TypeBackend }
 
 // Parse strictly decodes and validates an AppSpec payload.
 func Parse(data []byte) (Spec, error) {
@@ -70,13 +85,23 @@ func (s Spec) validate() error {
 		if !validRuntimes[svc.Runtime] {
 			return fmt.Errorf("%w: service %q has invalid runtime %q", ErrInvalidSpec, name, svc.Runtime)
 		}
-		if strings.TrimSpace(svc.Path) == "" {
+		if isHTTPType(svc.Type) && strings.TrimSpace(svc.Path) == "" {
 			return fmt.Errorf("%w: service %q missing path", ErrInvalidSpec, name)
+		}
+		if svc.Type == TypeCron {
+			if schedErr := ValidateSchedule(svc.Schedule); schedErr != nil {
+				return fmt.Errorf("%w: service %q schedule: %w", ErrInvalidSpec, name, schedErr)
+			}
 		}
 	}
 	for route, target := range s.Routing {
-		if _, ok := s.Services[target.Service]; !ok {
+		targetSvc, knownTarget := s.Services[target.Service]
+		if !knownTarget {
 			return fmt.Errorf("%w: routing %q references unknown service %q",
+				ErrInvalidSpec, route, target.Service)
+		}
+		if !isHTTPType(targetSvc.Type) {
+			return fmt.Errorf("%w: routing %q targets non-HTTP service %q",
 				ErrInvalidSpec, route, target.Service)
 		}
 	}
