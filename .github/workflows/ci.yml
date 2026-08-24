@@ -36,6 +36,12 @@ jobs:
         run: |
           out=$(gofmt -l .)
           if [ -n "$out" ]; then echo "$out"; exit 1; fi
+      - name: migrate schema (control-plane)
+        if: matrix.module == 'control-plane'
+        run: |
+          GOBIN=$(pwd)/bin go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.3
+          ./bin/migrate -path control-plane/internal/store/migrations \
+            -database "postgres://tenara:tenara_pg_dev@127.0.0.1:15432/tenara?sslmode=disable" up
       - name: vet & test (${{ matrix.module }})
         working-directory: ${{ matrix.module }}
         run: |
