@@ -8,9 +8,6 @@ F1/F2/F4 验收回执 APPROVE）。当前能力总览见 [README](../README.md)�
 
 - **F3 真实手工 QA**：按 live-gates 手册在真实集群栈执行全部在线验收——
   RB§51 剧本、六项 PoC 云模式、gVisor pod 实测、跨 cell 故障演练、支付回调端到端。
-- **k8s 发布列车升级**：`k8s.io/*` 0.31 → 0.36、`controller-runtime` 0.19 → 0.24
-  属跨代升级工程（Dependabot 已锁定补丁级），需按 upstream 迁移说明分步推进并回归
-  全量断言套件。
 
 ## 候选（中期）
 
@@ -28,3 +25,4 @@ F1/F2/F4 验收回执 APPROVE）。当前能力总览见 [README](../README.md)�
 - Cell 多集群注册路由与故障半径隔离 · Preview Deployments 自动化
 - 计费产品化 · RBAC 七角色矩阵 · 三次硬闸 Auto-Repair 循环
 - 四云 runtime 适配器（baidu/aliyun/tencent/selfhosted）与数据面 Provider 舰队
+- k8s 发布列车升级至 0.36 / controller-runtime 0.24（事件 API 与 RequeueAfter 迁移）

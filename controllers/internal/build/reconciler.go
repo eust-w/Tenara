@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -38,7 +39,8 @@ func (r *Reconciler) reconcilePhase(ctx context.Context, b *Build) (reconcile.Re
 		if updateErr := r.Status().Update(ctx, b); updateErr != nil {
 			return ctrl.Result{}, fmt.Errorf("set CREATED: %w", updateErr)
 		}
-		return ctrl.Result{Requeue: true}, nil
+		// Pod writes the next phase; poll shortly.
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 
 	case PhaseCreated, PhaseCloning, PhaseBuilding, PhaseScanning, PhaseSigning:
 		// Actual work runs in pod init containers; the controller only polls
