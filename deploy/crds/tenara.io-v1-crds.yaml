@@ -1,0 +1,122 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: builds.tenara.io
+spec:
+  group: tenara.io
+  names: { kind: Build, listKind: BuildList, plural: builds, singular: build }
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion: { type: string }
+            kind: { type: string }
+            metadata: { type: object }
+            spec:
+              type: object
+              required: [app, env, git]
+              properties:
+                app: { type: string }
+                env: { type: string }
+                appspecRef: { type: string }
+                dockerfile: { type: string }
+                git:
+                  type: object
+                  required: [url]
+                  properties:
+                    url: { type: string }
+                    sha: { type: string }
+                    tokenRef: { type: string }
+            status:
+              type: object
+              properties:
+                phase: { type: string }
+                digest: { type: string }
+                sbom: { type: string }
+                scan: { type: string }
+                sign: { type: string }
+                reason: { type: string }
+                message: { type: string }
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: appenvs.tenara.io
+spec:
+  group: tenara.io
+  names: { kind: AppEnv, listKind: AppEnvList, plural: appenvs, singular: appenv }
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion: { type: string }
+            kind: { type: string }
+            metadata: { type: object }
+            spec:
+              type: object
+              required: [appId, env, quotaTier, isolation]
+              properties:
+                appId: { type: string }
+                env: { type: string }
+                appspecRef: { type: string }
+                domainRefs:
+                  type: array
+                  items: { type: string }
+                quotaTier: { type: string, enum: [free, pro] }
+                isolation: { type: string, enum: [shared, isolated, dedicated] }
+            status:
+              type: object
+              properties:
+                namespace: { type: string }
+                phase: { type: string }
+                reason: { type: string }
+                message: { type: string }
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: databasebindings.tenara.io
+spec:
+  group: tenara.io
+  names: { kind: DatabaseBinding, listKind: DatabaseBindingList, plural: databasebindings, singular: databasebinding }
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion: { type: string }
+            kind: { type: string }
+            metadata: { type: object }
+            spec:
+              type: object
+              required: [appId, env, kind]
+              properties:
+                appId: { type: string }
+                env: { type: string }
+                kind: { type: string, enum: [mongo, redis, storage] }
+            status:
+              type: object
+              properties:
+                phase: { type: string }
+                reason: { type: string }
+                message: { type: string }

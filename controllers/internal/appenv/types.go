@@ -4,9 +4,25 @@ package appenv
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 var Scheme = runtime.NewScheme()
+
+// GroupVersion identifies the tenara.io/v1 API group served by this package.
+var GroupVersion = schema.GroupVersion{Group: "tenara.io", Version: "v1"}
+
+func init() {
+	Scheme.AddKnownTypes(GroupVersion, &AppEnv{}, &AppEnvList{})
+	metav1.AddToGroupVersion(Scheme, GroupVersion)
+}
+
+// AddToScheme registers this package's types into s.
+func AddToScheme(s *runtime.Scheme) error {
+	s.AddKnownTypes(GroupVersion, &AppEnv{}, &AppEnvList{})
+	metav1.AddToGroupVersion(s, GroupVersion)
+	return nil
+}
 
 const (
 	APIVersion = "tenara.io/v1"
