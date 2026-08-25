@@ -83,6 +83,20 @@ func (s *Store) CreateApp(ctx context.Context, orgID, name, createdBy string) (A
 	if slug == "" || strings.TrimSpace(name) == "" {
 		return App{}, fmt.Errorf("%w: name needs alphanumeric characters", ErrConflict)
 	}
+	var tier string
+	tierErr := s.pool.QueryRow(ctx,
+		`SELECT tier FROM organizations WHERE id = $1`, orgID).Scan(&tier)
+	if errors.Is(tierErr, pgx.ErrNoRows) {
+		return App{}, ErrNotFound
+	}
+	if tierErr != nil {
+		return App{}, tierErr
+	}
+	maxApps := freeTierMaxApps
+	if tier == "pro" {
+		maxApps = proTierMaxApps
+	}
+
 	var app App
 	insertErr := s.pool.QueryRow(ctx, `
 INSERT INTO applications (org_id, name, slug, created_by)
@@ -90,7 +104,7 @@ SELECT $1, $2, $3, NULLIF($4,'')::uuid
 WHERE (SELECT count(*) FROM applications WHERE org_id = $1 AND deleted_at IS NULL) < $5
 ON CONFLICT (org_id, name) DO NOTHING
 RETURNING id, name, slug, created_at::text`,
-		orgID, name, slug, createdBy, freeTierMaxApps).
+		orgID, name, slug, createdBy, maxApps).
 		Scan(&app.ID, &app.Name, &app.Slug, &app.CreatedAt)
 	if errors.Is(insertErr, pgx.ErrNoRows) {
 		return App{}, s.classifyCreateRejection(ctx, orgID, name)
@@ -136,7 +150,8 @@ func (s *Store) classifyCreateRejection(ctx context.Context, orgID, name string)
 		maxApps = proTierMaxApps
 	}
 	if count >= maxApps {
-		return fmt.Errorf("%w: %s tier allows %d apps", ErrQuotaExceeded, tierOrFree(tier), maxApps)
+		return fmt.Errorf("%w: %s tier allows %d apps",
+			ErrQuotaExceeded, tierOrFree(tier), maxApps)
 	}
 	return fmt.Errorf("%w: concurrent creation race", ErrConflict)
 }
