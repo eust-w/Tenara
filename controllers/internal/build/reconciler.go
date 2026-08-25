@@ -30,8 +30,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	if getErr := r.Get(ctx, req.NamespacedName, &b); getErr != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(getErr)
 	}
-	if res, err := r.maybeBackfillDigest(ctx, &b); err != nil || res.RequeueAfter > 0 {
-		return res, err
+	if err := r.maybeBackfillDigest(ctx, &b); err != nil {
+		return ctrl.Result{}, err
 	}
 	return r.reconcilePhase(ctx, &b)
 }
@@ -39,16 +39,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 // maybeBackfillDigest implements phase-2 digest backfill (P2-C): when a
 // labeled Build reaches PUSHED, patch every same-app AppEnv service image
 // so renderServices rolls the workload forward — no control plane involved.
-func (r *Reconciler) maybeBackfillDigest(ctx context.Context, b *Build) (reconcile.Result, error) {
+func (r *Reconciler) maybeBackfillDigest(ctx context.Context, b *Build) error {
 	appID := b.Labels["tenara.io/app-id"]
 	if b.Status.Phase != PhasePushed || b.Status.ImageDigest == "" || appID == "" {
-		return reconcile.Result{}, nil
+		return nil
 	}
 	var list appenv.AppEnvList
 	listErr := r.List(ctx, &list, client.InNamespace(b.Namespace),
 		client.MatchingLabels{"tenara.io/app-id": appID})
 	if listErr != nil {
-		return reconcile.Result{}, fmt.Errorf("list appenvs: %w", listErr)
+		return fmt.Errorf("list appenvs: %w", listErr)
 	}
 	patched := false
 	for i := range list.Items {
@@ -64,13 +64,13 @@ func (r *Reconciler) maybeBackfillDigest(ctx context.Context, b *Build) (reconci
 			continue
 		}
 		if updErr := r.Update(ctx, ae); updErr != nil {
-			return reconcile.Result{}, fmt.Errorf("backfill %s/%s: %w",
+			return fmt.Errorf("backfill %s/%s: %w",
 				ae.Namespace, ae.Name, updErr)
 		}
 		patched = true
 	}
 	_ = patched // success: renderServices reacts to the spec update
-	return reconcile.Result{}, nil
+	return nil
 }
 
 // reconcilePhase advances the build through its lifecycle one step per pass.
