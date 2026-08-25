@@ -27,6 +27,17 @@ const (
 	proTierMaxApps = 50
 )
 
+// OrgTier returns the organization billing tier ("free" when unset).
+func (s *Store) OrgTier(ctx context.Context, orgID string) (string, error) {
+	var tier string
+	err := s.pool.QueryRow(ctx,
+		`SELECT tier FROM organizations WHERE id = $1`, orgID).Scan(&tier)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "free", nil
+	}
+	return tier, err
+}
+
 func tierOrFree(tier string) string {
 	if tier == "" {
 		return "free"

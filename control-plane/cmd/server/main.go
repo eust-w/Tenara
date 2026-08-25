@@ -25,6 +25,7 @@ import (
 	"tenara/control-plane/internal/kms"
 	"tenara/control-plane/internal/pgstore"
 	"tenara/control-plane/internal/previews"
+	"tenara/control-plane/internal/provision"
 )
 
 func main() {
@@ -168,6 +169,9 @@ func mountPlatformAPI(
 			return nil, fmt.Errorf("%w: %w", apps.ErrUnsupportedStackKind, analyzeErr)
 		}
 		return out, analyzeErr
+	}
+	if getenvOr("TENARA_CLUSTER_BRIDGE", "") == "kubectl" {
+		appsH.Applier = provision.KubectlApplier{}
 	}
 	appsH.Mount(router)
 }

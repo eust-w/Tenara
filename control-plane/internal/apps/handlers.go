@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"tenara/control-plane/internal/appspec"
 	"tenara/control-plane/internal/kms"
 	"tenara/control-plane/internal/orchestrator/plan"
+	"tenara/control-plane/internal/provision"
 	"tenara/control-plane/internal/rbac"
 	"tenara/control-plane/internal/secrets"
 )
@@ -32,7 +34,9 @@ type Gate interface {
 type Handlers struct {
 	// Analyze abstracts the repository analyzer via DI; the returned JSON
 	// carries an "app_spec" member persisted as current_spec.
-	Analyze    func(repoPath, baseDomain string) (json.RawMessage, error)
+	Analyze func(repoPath, baseDomain string) (json.RawMessage, error)
+	// Applier optionally materializes cluster objects (env-gated DI).
+	Applier    provision.Applier
 	store      *Store
 	secrets    *secrets.Service //nolint:fieldalignment // handler singleton; layout irrelevant
 	gate       Gate
@@ -466,6 +470,27 @@ func (h *Handlers) handleDeploy(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusInternalServerError, "INTERNAL", "approval failed")
 		return
 	}
+	// Cluster bridge (phase 1): best-effort AppEnv materialization.
+	if h.Applier != nil {
+		appIDParam := chi.URLParam(r, "appId")
+		if app, getAppErr := h.store.GetApp(r.Context(), orgID, appIDParam); getAppErr == nil {
+			tier, tierErr := h.store.OrgTier(r.Context(), orgID)
+			if tierErr != nil {
+				tier = ""
+			}
+			obj := provision.BuildAppEnv(provision.AppEnvInput{
+				AppID:     app.ID,
+				Env:       "production",
+				Name:      app.Slug,
+				QuotaTier: tierOrFree(tier),
+				Isolation: "shared",
+			})
+			if applyErr := h.Applier.Apply(r.Context(), obj); applyErr != nil {
+				log.Printf("provision.apply app=%s: %v", app.Slug, applyErr)
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusAccepted, map[string]string{"id": depID, "state": "PLANNED"})
 }
 
