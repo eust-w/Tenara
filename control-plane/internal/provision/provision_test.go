@@ -49,3 +49,21 @@ func TestRecordingApplierContract(t *testing.T) {
 		t.Fatalf("recorded = %v", rec.got)
 	}
 }
+
+func TestBuildBuildShape(t *testing.T) {
+	obj := BuildBuild(BuildInput{
+		AppID: "uuid-1", Env: "prod", Name: "probe-b1",
+		GitURL: "https://git.test/r.git", GitSHA: "abc123",
+	})
+	if obj["kind"] != "Build" || obj["apiVersion"] != "tenara.io/v1" {
+		t.Fatalf("gvk wrong: %v", obj)
+	}
+	spec := obj["spec"].(map[string]any)
+	git := spec["git"].(map[string]any)
+	if git["url"] != "https://git.test/r.git" || git["sha"] != "abc123" {
+		t.Fatalf("git = %v", git)
+	}
+	if _, has := spec["dockerfile"]; has {
+		t.Fatal("empty dockerfile must be omitted")
+	}
+}
