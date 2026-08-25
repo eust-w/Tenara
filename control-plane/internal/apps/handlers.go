@@ -1,6 +1,7 @@
 package apps
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -470,26 +471,7 @@ func (h *Handlers) handleDeploy(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusInternalServerError, "INTERNAL", "approval failed")
 		return
 	}
-	// Cluster bridge (phase 1): best-effort AppEnv materialization.
-	if h.Applier != nil {
-		appIDParam := chi.URLParam(r, "appId")
-		if app, getAppErr := h.store.GetApp(r.Context(), orgID, appIDParam); getAppErr == nil {
-			tier, tierErr := h.store.OrgTier(r.Context(), orgID)
-			if tierErr != nil {
-				tier = ""
-			}
-			obj := provision.BuildAppEnv(provision.AppEnvInput{
-				AppID:     app.ID,
-				Env:       "production",
-				Name:      app.Slug,
-				QuotaTier: tierOrFree(tier),
-				Isolation: "shared",
-			})
-			if applyErr := h.Applier.Apply(r.Context(), obj); applyErr != nil {
-				log.Printf("provision.apply app=%s: %v", app.Slug, applyErr)
-			}
-		}
-	}
+	h.applyBridgeBestEffort(r.Context(), orgID, chi.URLParam(r, "appId"))
 
 	writeJSON(w, http.StatusAccepted, map[string]string{"id": depID, "state": "PLANNED"})
 }
@@ -586,4 +568,31 @@ func (h *Handlers) handleRequestDatabase(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"database": db, "binding": binding,
 	})
+}
+
+// applyBridgeBestEffort materializes the app's AppEnv when a cluster
+// bridge is configured; failures are logged and never fail the API call
+// (convergence is eventual by design).
+func (h *Handlers) applyBridgeBestEffort(ctx context.Context, orgID, appIDParam string) {
+	if h.Applier == nil {
+		return
+	}
+	app, getAppErr := h.store.GetApp(ctx, orgID, appIDParam)
+	if getAppErr != nil {
+		return
+	}
+	tier, tierErr := h.store.OrgTier(ctx, orgID)
+	if tierErr != nil {
+		tier = ""
+	}
+	obj := provision.BuildAppEnv(provision.AppEnvInput{
+		AppID:     app.ID,
+		Env:       "production",
+		Name:      app.Slug,
+		QuotaTier: tierOrFree(tier),
+		Isolation: "shared",
+	})
+	if applyErr := h.Applier.Apply(ctx, obj); applyErr != nil {
+		log.Printf("provision.apply app=%s: %v", app.Slug, applyErr)
+	}
 }

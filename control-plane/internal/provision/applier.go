@@ -37,6 +37,7 @@ func (k KubectlApplier) Apply(ctx context.Context, obj Object) error {
 	if err != nil {
 		return err
 	}
+	//nolint:gosec // binary is operator-configured via env, never user input
 	cmd := exec.CommandContext(ctx, bin, "apply", "-f", "-")
 	cmd.Stdin = bytes.NewReader(manifest)
 	out, err := cmd.CombinedOutput()

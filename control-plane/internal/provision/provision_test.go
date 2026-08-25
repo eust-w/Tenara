@@ -18,9 +18,9 @@ func TestBuildAppEnvShape(t *testing.T) {
 	if spec["appId"] != "uuid-1" || spec["quotaTier"] != "pro" {
 		t.Fatalf("spec = %v", spec)
 	}
-	raw, err := json.Marshal(obj)
-	if err != nil {
-		t.Fatal(err)
+	raw, marshalErr := json.Marshal(obj)
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
 	}
 	var back map[string]any
 	if err := json.Unmarshal(raw, &back); err != nil {
