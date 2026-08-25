@@ -449,6 +449,7 @@ func (h *Handlers) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		PlanID string `json:"plan_id"`
+		Image  string `json:"image"`
 	}
 	if !decodeInto(r, &in) || in.PlanID == "" {
 		writeProblem(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "plan_id required")
@@ -471,7 +472,7 @@ func (h *Handlers) handleDeploy(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusInternalServerError, "INTERNAL", "approval failed")
 		return
 	}
-	h.applyBridgeBestEffort(r.Context(), orgID, chi.URLParam(r, "appId"))
+	h.applyBridgeBestEffort(r.Context(), orgID, chi.URLParam(r, "appId"), in.Image)
 
 	writeJSON(w, http.StatusAccepted, map[string]string{"id": depID, "state": "PLANNED"})
 }
@@ -573,7 +574,7 @@ func (h *Handlers) handleRequestDatabase(w http.ResponseWriter, r *http.Request)
 // applyBridgeBestEffort materializes the app's AppEnv when a cluster
 // bridge is configured; failures are logged and never fail the API call
 // (convergence is eventual by design).
-func (h *Handlers) applyBridgeBestEffort(ctx context.Context, orgID, appIDParam string) {
+func (h *Handlers) applyBridgeBestEffort(ctx context.Context, orgID, appIDParam, image string) {
 	if h.Applier == nil {
 		return
 	}
@@ -585,13 +586,21 @@ func (h *Handlers) applyBridgeBestEffort(ctx context.Context, orgID, appIDParam 
 	if tierErr != nil {
 		tier = ""
 	}
-	obj := provision.BuildAppEnv(provision.AppEnvInput{
+	input := provision.AppEnvInput{
 		AppID:     app.ID,
 		Env:       "production",
 		Name:      app.Slug,
 		QuotaTier: tierOrFree(tier),
 		Isolation: "shared",
-	})
+	}
+	if image != "" {
+		if !strings.Contains(image, "@sha256:") {
+			log.Printf("provision.skip non-digest image %q", image)
+		} else {
+			input.Services = []provision.ServiceInput{{Name: app.Slug + "-web", Image: image}}
+		}
+	}
+	obj := provision.BuildAppEnv(input)
 	if applyErr := h.Applier.Apply(ctx, obj); applyErr != nil {
 		log.Printf("provision.apply app=%s: %v", app.Slug, applyErr)
 	}

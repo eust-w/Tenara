@@ -12,6 +12,10 @@ func (in *AppEnvSpec) DeepCopyInto(out *AppEnvSpec) {
 	if in.DomainRefs != nil {
 		out.DomainRefs = append(out.DomainRefs[:0:0], in.DomainRefs...)
 	}
+	if in.Services != nil {
+		out.Services = make([]ServiceSpec, len(in.Services))
+		copy(out.Services, in.Services)
+	}
 }
 
 func (in *AppEnvSpec) DeepCopy() *AppEnvSpec {

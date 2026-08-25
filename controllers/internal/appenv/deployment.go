@@ -97,7 +97,7 @@ func RenderDeployment(appID, env, namespace string, s ServiceInput) (*appsv1.Dep
 		"app":          s.Name,
 	}
 
-	podSpec := restrictedPodSpec(s, true)
+	podSpec := restrictedPodSpec(s, s.Port > 0)
 	if schedErr := EnsureNoCrossPoolToleration(&podSpec); schedErr != nil {
 		return nil, schedErr
 	}

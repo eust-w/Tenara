@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -54,7 +57,50 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	if nsErr := r.ensureNamespace(ctx, &ae); nsErr != nil {
 		return ctrl.Result{}, nsErr
 	}
+	if rErr := r.renderServices(ctx, &ae); rErr != nil {
+		return ctrl.Result{}, rErr
+	}
 	return ctrl.Result{}, nil
+}
+
+// renderServices applies one hardened Deployment per declared service into
+// the tenant namespace, creating or updating idempotently.
+func (r *Reconciler) renderServices(ctx context.Context, ae *AppEnv) error {
+	if len(ae.Spec.Services) == 0 || ae.Status.Namespace == "" {
+		return nil
+	}
+	svcs := make([]ServiceInput, 0, len(ae.Spec.Services))
+	for _, svc := range ae.Spec.Services {
+		svcs = append(svcs, ServiceInput{
+			Name:      svc.Name,
+			Image:     svc.Image,
+			Port:      svc.Port,
+			Isolation: ae.Spec.Isolation,
+		})
+	}
+	deps, genErr := RenderDeployments(ae.Spec.AppID, ae.Spec.Env, ae.Status.Namespace, svcs)
+	if genErr != nil {
+		return fmt.Errorf("render services: %w", genErr)
+	}
+	for _, dep := range deps {
+		var cur appsv1.Deployment
+		getErr := r.Get(ctx, types.NamespacedName{Namespace: dep.Namespace, Name: dep.Name}, &cur)
+		switch {
+		case apierrors.IsNotFound(getErr):
+			if cErr := r.Create(ctx, dep); cErr != nil && !apierrors.IsAlreadyExists(cErr) {
+				return cErr
+			}
+		case getErr != nil:
+			return getErr
+		default:
+			cur.Spec.Replicas = dep.Spec.Replicas
+			cur.Spec.Template = dep.Spec.Template
+			if uErr := r.Update(ctx, &cur); uErr != nil {
+				return uErr
+			}
+		}
+	}
+	return nil
 }
 
 // ensureNamespace creates the tenant namespace owned by the AppEnv (cascade

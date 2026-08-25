@@ -76,6 +76,15 @@ spec:
                 domainRefs:
                   type: array
                   items: { type: string }
+                services:
+                  type: array
+                  items:
+                    type: object
+                    required: [name, image]
+                    properties:
+                      name: { type: string }
+                      image: { type: string, pattern: '^sha256:[a-f0-9]{64}$|@sha256:[a-f0-9]{64}$' }
+                      port: { type: integer, format: int32 }
                 quotaTier: { type: string, enum: [free, pro] }
                 isolation: { type: string, enum: [shared, isolated, dedicated] }
             status:

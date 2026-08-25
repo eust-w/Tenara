@@ -49,8 +49,17 @@ type AppEnvSpec struct {
 	Env        string         `json:"env"`
 	AppSpecRef string         `json:"appspecRef,omitempty"`
 	DomainRefs []string       `json:"domainRefs,omitempty"`
+	Services   []ServiceSpec  `json:"services,omitempty"`
 	QuotaTier  QuotaTier      `json:"quotaTier"`
 	Isolation  IsolationLevel `json:"isolation"`
+}
+
+// ServiceSpec is one digest-pinned workload rendered into the tenant
+// namespace by the reconciler.
+type ServiceSpec struct {
+	Name  string `json:"name"`
+	Image string `json:"image"` // must be digest-pinned (R3)
+	Port  int32  `json:"port,omitempty"`
 }
 
 type AppEnvStatus struct {

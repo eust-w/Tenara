@@ -4,6 +4,9 @@ package main
 import (
 	"os"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+
 	"tenara/controllers/internal/appenv"
 	"tenara/controllers/internal/build"
 
@@ -16,6 +19,14 @@ func main() {
 	logger := zap.New(zap.UseDevMode(true))
 	ctrl.SetLogger(logger)
 	scheme := appenv.Scheme
+	if err := corev1.AddToScheme(scheme); err != nil {
+		logger.Error(err, "unable to add core types")
+		os.Exit(1)
+	}
+	if err := appsv1.AddToScheme(scheme); err != nil {
+		logger.Error(err, "unable to add core types")
+		os.Exit(1)
+	}
 	if err := build.AddToScheme(scheme); err != nil {
 		logger.Error(err, "unable to add build types")
 		os.Exit(1)
