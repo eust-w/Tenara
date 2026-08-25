@@ -3,6 +3,7 @@ package apps
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -29,6 +30,9 @@ type Gate interface {
 }
 
 type Handlers struct {
+	// Analyze abstracts the repository analyzer via DI; the returned JSON
+	// carries an "app_spec" member persisted as current_spec.
+	Analyze    func(repoPath, baseDomain string) (json.RawMessage, error)
 	store      *Store
 	secrets    *secrets.Service //nolint:fieldalignment // handler singleton; layout irrelevant
 	gate       Gate
@@ -116,6 +120,8 @@ func (h *Handlers) Mount(r chi.Router) {
 		h.gate.RequireCap(rbac.CapDomainBind, h.handleVerifyDomain)))
 	r.Get("/v1/apps/{appId}/plan", h.gate.RequireCap(rbac.CapAppRead,
 		h.gate.Authenticated(h.handleGetPlan)))
+	r.Post("/v1/apps/{appId}/analyze", h.gate.Authenticated(
+		h.gate.RequireCap(rbac.CapAppCreate, h.handleAnalyze)))
 	r.Post("/v1/apps/{appId}/deployments", h.gate.Authenticated(
 		h.gate.RequireCap(rbac.CapAppDeploy,
 			h.gate.Idem(h.gate.Audited("app.deploy", h.handleDeploy)))))
@@ -293,6 +299,48 @@ func (h *Handlers) handlePutSpec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleAnalyze runs the repository analyzer and persists the derived
+// AppSpec as the app's current_spec override.
+func (h *Handlers) handleAnalyze(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgOrUnauthorized(w, r)
+	if !ok {
+		return
+	}
+	if h.Analyze == nil {
+		writeProblem(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "analyzer not wired")
+		return
+	}
+	var in struct {
+		RepoPath string `json:"repo_path"`
+	}
+	if !decodeInto(r, &in) || strings.TrimSpace(in.RepoPath) == "" {
+		writeProblem(w, http.StatusBadRequest, "BAD_REQUEST", "repo_path required")
+		return
+	}
+	raw, analyzeErr := h.Analyze(in.RepoPath, h.baseDomain)
+	if analyzeErr != nil {
+		mapWriteErr(w, fmt.Errorf("analyze: %w", analyzeErr))
+		return
+	}
+	var envelope struct {
+		AppSpec json.RawMessage `json:"app_spec"`
+	}
+	if unmarshalErr := json.Unmarshal(raw, &envelope); unmarshalErr != nil || len(envelope.AppSpec) == 0 {
+		writeProblem(w, http.StatusUnprocessableEntity, "INVALID_SPEC", "analysis lacks app_spec")
+		return
+	}
+	if _, parseErr := appspec.Parse(envelope.AppSpec); parseErr != nil {
+		writeProblem(w, http.StatusUnprocessableEntity, "INVALID_SPEC", parseErr.Error())
+		return
+	}
+	appID := chi.URLParam(r, "appId")
+	if saveErr := h.store.SaveAppSpec(r.Context(), orgID, appID, envelope.AppSpec); saveErr != nil {
+		mapWriteErr(w, saveErr)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"spec": envelope.AppSpec})
 }
 
 func (h *Handlers) handleGetPlan(w http.ResponseWriter, r *http.Request) {

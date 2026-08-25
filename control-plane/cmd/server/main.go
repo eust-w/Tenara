@@ -15,10 +15,12 @@ import (
 	"github.com/tenara/analyzer"
 	"go.uber.org/zap"
 
+	"tenara/control-plane/internal/apps"
 	"tenara/control-plane/internal/auth"
 	"tenara/control-plane/internal/config"
 	"tenara/control-plane/internal/httpapi"
 	"tenara/control-plane/internal/httpx"
+	"tenara/control-plane/internal/kms"
 	"tenara/control-plane/internal/pgstore"
 	"tenara/control-plane/internal/previews"
 )
@@ -49,6 +51,20 @@ func main() {
 	router.Use(httpx.RequestID)
 	router.Use(httpx.Recover(log))
 	router.Use(httpx.RequestLogger(log))
+
+	// Platform API (contract routes): auth + apps + databases/domains/secrets.
+	tokenSecret := getenvOr("TENARA_TOKEN_SECRET", "dev-only-secret-key-32-bytes!!")
+	baseURL := getenvOr("TENARA_BASE_URL", "http://127.0.0.1:"+cfg.Port)
+	authSvc := auth.NewService(auth.NewStore(pool), auth.NewTokenManager(tokenSecret), baseURL)
+	authSvc.Mount(router)
+	kmsKey := getenvOr("TENARA_KMS_MASTER_KEY_HEX", strings.Repeat("ab", 32))
+	kmsImpl, kmsErr := kms.NewStub(kmsKey)
+	if kmsErr != nil {
+		log.Fatal("invalid kms master key", zap.Error(kmsErr))
+	}
+	appsH := apps.New(pool, auth.NewBridge(authSvc), "127.0.0.1.nip.io", kmsImpl)
+	appsH.Analyze = analyzer.AnalyzeLocal
+	appsH.Mount(router)
 
 	router.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -129,4 +145,11 @@ func handleAnalyze() http.HandlerFunc {
 			return
 		}
 	}
+}
+
+func getenvOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }

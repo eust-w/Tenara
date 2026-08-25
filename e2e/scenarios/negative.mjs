@@ -42,7 +42,7 @@ async function quotaRejection() {
   throw new Error("expected quota rejection");
 }
 async function unsupportedStack() {
-  const r = await api("POST", "/v1/analyze", { repo_url: "https://git.test/django.git" });
+  const r = await api("POST", "/v1/analyze", { repo_path: "/nonexistent/django" });
   if (!JSON.stringify(r.data).includes("UNSUPPORTED_STACK"))
     throw new Error("no UNSUPPORTED_STACK");
 }

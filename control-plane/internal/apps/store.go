@@ -317,6 +317,24 @@ type AppWithSpec struct {
 	SpecRaw []byte
 }
 
+// SaveAppSpec persists a validated AppSpec document onto the application.
+func (s *Store) SaveAppSpec(ctx context.Context, orgID, appID string, specRaw []byte) error {
+	if !validUUID(appID) {
+		return ErrNotFound
+	}
+	ct, execErr := s.pool.Exec(ctx,
+		`UPDATE applications SET current_spec = $2
+		 WHERE id = $1 AND org_id = $3 AND deleted_at IS NULL`,
+		appID, specRaw, orgID)
+	if execErr != nil {
+		return execErr
+	}
+	if ct.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // GetAppWithSpec additionally surfaces the stored manual override.
 func (s *Store) GetAppWithSpec(ctx context.Context, orgID, appID string) (AppWithSpec, error) {
 	if !validUUID(appID) {

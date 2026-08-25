@@ -38,7 +38,8 @@ async function step(name, fn) {
 }
 
 const APP_NAME = `e2e-${Date.now().toString(36)}`;
-const REPO_URL = "https://github.com/acme/e2e-fixture.git";
+const REPO_URL = process.env.TENARA_E2E_REPO ??
+	new URL("../fixtures/repos/single-nextjs", import.meta.url).pathname;
 
 // Step 1: create app
 await step("app.create", async () => {
@@ -48,22 +49,22 @@ await step("app.create", async () => {
 
 // Step 2: analyze repository
 await step("app.analyze", async () => {
-  const r = await api("POST", "/v1/analyze", { repo_url: `${REPO_URL}` });
+  const r = await api("POST", "/v1/analyze", { repo_path: REPO_URL });
   if (r.status >= 400) throw new Error(JSON.stringify(r.data));
 });
 
 // Step 3: generate plan
 let planId;
 await step("app.plan", async () => {
-  const r = await api("POST", `/v1/apps/${APP_NAME}/plan`, {});
+  const r = await api("GET", `/v1/apps/${APP_NAME}/plan`);
   if (r.status >= 400) throw new Error(JSON.stringify(r.data));
-  planId = r.data?.id ?? r.data?.plan_id;
+  planId = r.data?.id ?? r.data?.plan_id ?? r.data?.PlanID;
   if (!planId) throw new Error("no plan_id in response");
 });
 
 // Step 4: deploy approved plan (R9 implicit approval)
 await step("app.deploy", async () => {
-  const r = await api("POST", `/v1/apps/${APP_NAME}/deploy`, { plan_id: planId });
+  const r = await api("POST", `/v1/apps/${APP_NAME}/deployments`, { plan_id: planId });
   if (r.status >= 400) throw new Error(JSON.stringify(r.data));
 });
 

@@ -24,6 +24,8 @@ func normalizeKind(kind string) (string, error) {
 	switch kind {
 	case "":
 		return KindMongo, nil
+	case "mongo": // MCP vocabulary alias (tools.ts)
+		return KindMongo, nil
 	case KindMongo, KindRedis, KindStorage:
 		return kind, nil
 	default:

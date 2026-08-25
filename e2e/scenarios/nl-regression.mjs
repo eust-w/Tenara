@@ -38,32 +38,36 @@ async function scenario(utterance, fn) {
 }
 
 const APP = `nl-${Date.now().toString(36)}`;
-const REPO = "https://github.com/acme/e2e-fixture.git";
+let APP_ID; // set by S1, reused by later scenarios
+const REPO = process.env.TENARA_E2E_REPO ??
+	new URL("../fixtures/repos/single-nextjs", import.meta.url).pathname;
 
 // S1 ── 「把我的应用上线」: the analyze -> plan -> deploy core loop.
 await scenario("把我的应用上线", async () => {
   let r = await api("POST", "/v1/apps", { name: APP, env: "prod" });
+	// server keys sub-resources by returned identifier (UUID "ID")
+	APP_ID = r.data?.id ?? r.data?.ID ?? APP;
   if (r.status >= 400 && r.status !== 409) {
     throw new Error(`create ${r.status} ${JSON.stringify(r.data)}`);
   }
-  r = await api("POST", "/v1/analyze", { repo_url: REPO });
-  if (r.status >= 400) throw new Error(`analyze ${r.status}`);
-  r = await api("POST", `/v1/apps/${APP}/plan`, {});
+  r = await api("POST", `/v1/apps/${APP_ID}/analyze`, { repo_path: REPO });
+  if (r.status >= 400) throw new Error(`analyze ${r.status} ${JSON.stringify(r.data)}`);
+  r = await api("GET", `/v1/apps/${APP_ID}/plan`);
   if (r.status >= 400) throw new Error(`plan ${r.status}`);
-  const planId = r.data?.id ?? r.data?.plan_id;
+  const planId = r.data?.id ?? r.data?.plan_id ?? r.data?.PlanID;
   if (!planId) throw new Error("no plan id in response");
-  r = await api("POST", `/v1/apps/${APP}/deploy`, { plan_id: planId });
+  r = await api("POST", `/v1/apps/${APP_ID}/deployments`, { plan_id: planId });
   if (r.status >= 400) throw new Error(`deploy ${r.status} ${JSON.stringify(r.data)}`);
 });
 
 // S2 ── 「给应用配一个 MongoDB 数据库」: T89 multi-kind binding contract.
 await scenario("给应用配一个 MongoDB", async () => {
-  const r = await api("POST", `/v1/apps/${APP}/databases`, { kind: "mongo" });
+  const r = await api("POST", `/v1/apps/${APP_ID}/databases`, { kind: "mongo" });
   if (r.status !== 200 && r.status !== 201) {
     throw new Error(`create ${r.status} ${JSON.stringify(r.data)}`);
   }
   // Idempotent replay must merge into the same binding row.
-  const replay = await api("POST", `/v1/apps/${APP}/databases`, { kind: "mongo" });
+  const replay = await api("POST", `/v1/apps/${APP_ID}/databases`, { kind: "mongo" });
   if (replay.status !== 200 && replay.status !== 201) {
     throw new Error(`replay ${replay.status}`);
   }
@@ -72,7 +76,7 @@ await scenario("给应用配一个 MongoDB", async () => {
 // S3 ── 「给我的应用绑一个自定义域名」: TXT challenge must surface.
 await scenario("绑自定义域名", async () => {
   const host = `${APP}.example.com`;
-  const r = await api("POST", `/v1/apps/${APP}/domains`, { hostname: host });
+  const r = await api("POST", `/v1/apps/${APP_ID}/domains`, { hostname: host });
   if (r.status >= 400) throw new Error(`add domain ${r.status} ${JSON.stringify(r.data)}`);
   const challenge = r.data?.txt_challenge ?? r.data?.challenge;
   if (!challenge && !r.data?.verified) throw new Error("no TXT challenge surfaced");
@@ -80,13 +84,13 @@ await scenario("绑自定义域名", async () => {
 
 // S4 ── 「出问题了,先回滚到上一版」: previous-revision rollback.
 await scenario("回滚到上一版", async () => {
-  const list = await api("GET", `/v1/apps/${APP}/deployments`);
+  const list = await api("GET", `/v1/apps/${APP_ID}/deployments`);
   if (list.status === 404) throw new Error("revisions endpoint missing");
   if (list.status >= 400) throw new Error(`list ${list.status}`);
   const revs = Array.isArray(list.data) ? list.data : (list.data?.items ?? []);
   if (revs.length < 2) return; // fresh env: single revision, nothing to roll back
   const prev = revs[revs.length - 2]?.id ?? revs[1]?.id;
-  const r = await api("POST", `/v1/apps/${APP}/rollback`, { revision_id: prev });
+  const r = await api("POST", `/v1/apps/${APP_ID}/rollback`, { revision_id: prev });
   if (r.status >= 400 && r.status !== 409) {
     throw new Error(`rollback ${r.status} ${JSON.stringify(r.data)}`);
   }
@@ -94,9 +98,9 @@ await scenario("回滚到上一版", async () => {
 
 // S5 ── 「应用好像挂了,帮我看看怎么回事」: failure diagnostics readout.
 await scenario("应用挂了帮我看看", async () => {
-  const diag = await api("GET", `/v1/apps/${APP}/diagnostics`);
+  const diag = await api("GET", `/v1/apps/${APP_ID}/diagnostics`);
   if (diag.status >= 500) throw new Error(`diagnostics ${diag.status}`);
-  const logs = await api("GET", `/v1/apps/${APP}/logs?limit=20`);
+  const logs = await api("GET", `/v1/apps/${APP_ID}/logs?limit=20`);
   if (logs.status >= 500) throw new Error(`logs ${logs.status}`);
 });
 
