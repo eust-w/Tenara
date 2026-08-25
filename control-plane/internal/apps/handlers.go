@@ -450,6 +450,8 @@ func (h *Handlers) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		PlanID string `json:"plan_id"`
 		Image  string `json:"image"`
+		GitURL string `json:"git_url"`
+		GitSHA string `json:"git_sha"`
 	}
 	if !decodeInto(r, &in) || in.PlanID == "" {
 		writeProblem(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "plan_id required")
@@ -472,7 +474,7 @@ func (h *Handlers) handleDeploy(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusInternalServerError, "INTERNAL", "approval failed")
 		return
 	}
-	h.applyBridgeBestEffort(r.Context(), orgID, chi.URLParam(r, "appId"), in.Image)
+	h.applyBridgeBestEffort(r.Context(), orgID, chi.URLParam(r, "appId"), in.Image, in.GitURL, in.GitSHA)
 
 	writeJSON(w, http.StatusAccepted, map[string]string{"id": depID, "state": "PLANNED"})
 }
@@ -574,7 +576,7 @@ func (h *Handlers) handleRequestDatabase(w http.ResponseWriter, r *http.Request)
 // applyBridgeBestEffort materializes the app's AppEnv when a cluster
 // bridge is configured; failures are logged and never fail the API call
 // (convergence is eventual by design).
-func (h *Handlers) applyBridgeBestEffort(ctx context.Context, orgID, appIDParam, image string) {
+func (h *Handlers) applyBridgeBestEffort(ctx context.Context, orgID, appIDParam, image, gitURL, gitSHA string) {
 	if h.Applier == nil {
 		return
 	}
@@ -593,15 +595,27 @@ func (h *Handlers) applyBridgeBestEffort(ctx context.Context, orgID, appIDParam,
 		QuotaTier: tierOrFree(tier),
 		Isolation: "shared",
 	}
-	if image != "" {
+	switch {
+	case image != "":
 		if !strings.Contains(image, "@sha256:") {
 			log.Printf("provision.skip non-digest image %q", image)
 		} else {
 			input.Services = []provision.ServiceInput{{Name: app.Slug + "-web", Image: image}}
 		}
-	}
-	obj := provision.BuildAppEnv(input)
-	if applyErr := h.Applier.Apply(ctx, obj); applyErr != nil {
-		log.Printf("provision.apply app=%s: %v", app.Slug, applyErr)
+		obj := provision.BuildAppEnv(input)
+		if applyErr := h.Applier.Apply(ctx, obj); applyErr != nil {
+			log.Printf("provision.apply appenv app=%s: %v", app.Slug, applyErr)
+		}
+	case gitURL != "":
+		name := fmt.Sprintf("%s-b-%d", app.Slug, time.Now().UnixNano()%100000)
+		bObj := provision.BuildBuild(provision.BuildInput{
+			AppID: app.ID, Env: "production", Name: name,
+			GitURL: gitURL, GitSHA: gitSHA,
+		})
+		if applyErr := h.Applier.Apply(ctx, bObj); applyErr != nil {
+			log.Printf("provision.apply build app=%s: %v", app.Slug, applyErr)
+		}
+	default:
+		log.Printf("provision.skip: no image or git source")
 	}
 }
