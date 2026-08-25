@@ -20,7 +20,19 @@ import (
 
 // freeTierMaxApps pins the R10 org-level quota; namespace-level ResourceQuota
 // is layered separately by the tenant controller (todo37).
-const freeTierMaxApps = 3
+const (
+	// freeTierMaxApps pins the R10 org-level app quota for the free tier.
+	freeTierMaxApps = 3
+	// proTierMaxApps lifts the ceiling for pro organizations.
+	proTierMaxApps = 50
+)
+
+func tierOrFree(tier string) string {
+	if tier == "" {
+		return "free"
+	}
+	return tier
+}
 
 var (
 	ErrNotFound      = errors.New("not found")
@@ -113,8 +125,18 @@ func (s *Store) classifyCreateRejection(ctx context.Context, orgID, name string)
 	if countErr != nil {
 		return countErr
 	}
-	if count >= freeTierMaxApps {
-		return fmt.Errorf("%w: free tier allows %d apps", ErrQuotaExceeded, freeTierMaxApps)
+	// Tier-aware cap (RB§29): organizations.tier decides the ceiling.
+	var tier string
+	if tierErr := s.pool.QueryRow(ctx,
+		`SELECT tier FROM organizations WHERE id = $1`, orgID).Scan(&tier); tierErr != nil && !errors.Is(tierErr, pgx.ErrNoRows) {
+		return tierErr
+	}
+	maxApps := freeTierMaxApps
+	if tier == "pro" {
+		maxApps = proTierMaxApps
+	}
+	if count >= maxApps {
+		return fmt.Errorf("%w: %s tier allows %d apps", ErrQuotaExceeded, tierOrFree(tier), maxApps)
 	}
 	return fmt.Errorf("%w: concurrent creation race", ErrConflict)
 }
