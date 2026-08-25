@@ -6,8 +6,11 @@ F1/F2/F4 验收回执 APPROVE）。当前能力总览见 [README](../README.md)�
 
 ## 待执行（近期）
 
-- **F3 真实手工 QA**：按 live-gates 手册在真实集群栈执行全部在线验收——
-  RB§51 剧本、六项 PoC 云模式、gVisor pod 实测、跨 cell 故障演练、支付回调端到端。
+- **control-plane → 集群桥接器**（头号工程项）：部署 API 落库后尚无组件将
+  AppEnv/Build 物化到集群。方案：dynamic client 直 apply（本地 KUBECONFIG /
+  生产 SA），plan 输出映射 CRD；配套集成测试走通 nl-regression S1 全链收敛。
+- **F3 真实手工 QA 收尾**：本地栈已完成认证链、五场景回归、双控制器活体等
+  （见 live-gates 已知缺口节）；剩余项依赖桥接器与云凭据。
 
 ## 候选（中期）
 
