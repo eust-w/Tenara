@@ -38,8 +38,9 @@ async function step(name, fn) {
 }
 
 const APP_NAME = `e2e-${Date.now().toString(36)}`;
-const REPO_URL = process.env.TENARA_E2E_REPO ??
-	new URL("../fixtures/repos/single-nextjs", import.meta.url).pathname;
+const REPO_URL =
+  process.env.TENARA_E2E_REPO ??
+  new URL("../fixtures/repos/single-nextjs", import.meta.url).pathname;
 
 // Step 1: create app
 await step("app.create", async () => {

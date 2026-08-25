@@ -92,7 +92,13 @@ metadata:
   name: databasebindings.tenara.io
 spec:
   group: tenara.io
-  names: { kind: DatabaseBinding, listKind: DatabaseBindingList, plural: databasebindings, singular: databasebinding }
+  names:
+    {
+      kind: DatabaseBinding,
+      listKind: DatabaseBindingList,
+      plural: databasebindings,
+      singular: databasebinding,
+    }
   scope: Namespaced
   versions:
     - name: v1

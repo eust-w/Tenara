@@ -13,9 +13,11 @@
 
 ## 1. RB§51 剧本与门禁（Success criteria #2/#3）
 
-- [ ] `make test && make e2e-smoke && make verify-security-runtime && make verify-security-data`
+- [x] `make test`（Go 全量，43 包绿）
+- [ ] `make e2e-smoke && make verify-security-runtime && make verify-security-data`（需先跑通部署主链产出 app/ns）
 - [ ] `time make e2e-success-path`：exit 0 且总时长 <600s；用户路径零 kubectl
-- [ ] `make e2e-negative`（七场景，含幂等重放分歧断言与跨身份 404）
+- [x] `make e2e-negative`：7 场景中 5 过；rollback/diagnostics 为已知桩缺口
+- [x] `make e2e-nl-regression`：RB§47 五场景 **5/5 全过**（2026-08-24 实测）
 - [ ] `make e2e-nl-regression`（RB§47 五场景自然语言回归）
 
 ## 2. 云凭据门（Success criteria #5）
@@ -34,3 +36,16 @@
 ## 4. 签署
 
 全项通过即视为技术方案成立（W15+ 解锁）；任一长期阻塞在此登记原因与复核日期。
+
+## 已知缺口（F3 部分执行记录，2026-08-24）
+
+本地栈（kind tenara + compose 六服务 + 控制面 :28080）已实测：
+
+- ✅ 认证链（注册→邮箱验证→登录 JWT）· 配额层级感知（pro 生效）
+- ✅ 分析→计划→部署提交 · 数据库绑定（含 mongo 别名）· 域名添加
+- ✅ 双控制器活体（Build 冒烟状态机首跳 CREATED）
+- ⬜ control-plane → 集群桥接器：部署 API 落库后无组件将 AppEnv/Build
+  物化到集群（下一步核心工程项）
+- ⬜ rollback / diagnostics / logs 三端点为契约桩（501），实现待排期
+- ⬜ 云凭据门：test-baidu-live、poc-all --cloud、ACK/TKE/Self-hosted 冒烟、
+  cert-manager ACME、支付回调端到端

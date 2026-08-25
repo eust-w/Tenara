@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tenara/analyzer"
 	"go.uber.org/zap"
 
@@ -52,19 +54,7 @@ func main() {
 	router.Use(httpx.Recover(log))
 	router.Use(httpx.RequestLogger(log))
 
-	// Platform API (contract routes): auth + apps + databases/domains/secrets.
-	tokenSecret := getenvOr("TENARA_TOKEN_SECRET", "dev-only-secret-key-32-bytes!!")
-	baseURL := getenvOr("TENARA_BASE_URL", "http://127.0.0.1:"+cfg.Port)
-	authSvc := auth.NewService(auth.NewStore(pool), auth.NewTokenManager(tokenSecret), baseURL)
-	authSvc.Mount(router)
-	kmsKey := getenvOr("TENARA_KMS_MASTER_KEY_HEX", strings.Repeat("ab", 32))
-	kmsImpl, kmsErr := kms.NewStub(kmsKey)
-	if kmsErr != nil {
-		log.Fatal("invalid kms master key", zap.Error(kmsErr))
-	}
-	appsH := apps.New(pool, auth.NewBridge(authSvc), "127.0.0.1.nip.io", kmsImpl)
-	appsH.Analyze = analyzer.AnalyzeLocal
-	appsH.Mount(router)
+	mountPlatformAPI(router, pool, log, cfg.Port)
 
 	router.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -152,4 +142,32 @@ func getenvOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// mountPlatformAPI wires the contract routes (auth + apps + databases/
+// domains/secrets) onto the router, bridging the analyzer's unsupported-
+// stack sentinel across the module boundary.
+func mountPlatformAPI(
+	router chi.Router, pool *pgxpool.Pool, log *zap.Logger, port string,
+) {
+	tokenSecret := getenvOr("TENARA_TOKEN_SECRET", "dev-only-secret-key-32-bytes!!")
+	baseURL := getenvOr("TENARA_BASE_URL", "http://127.0.0.1:"+port)
+	authSvc := auth.NewService(auth.NewStore(pool), auth.NewTokenManager(tokenSecret), baseURL)
+	authSvc.Mount(router)
+	kmsKey := getenvOr("TENARA_KMS_MASTER_KEY_HEX", strings.Repeat("ab", 32))
+	kmsImpl, kmsErr := kms.NewStub(kmsKey)
+	if kmsErr != nil {
+		log.Fatal("invalid kms master key", zap.Error(kmsErr))
+	}
+	appsH := apps.New(pool, auth.NewBridge(authSvc), "127.0.0.1.nip.io", kmsImpl)
+	appsH.Analyze = func(repoPath, baseDomain string) (json.RawMessage, error) {
+		out, analyzeErr := analyzer.AnalyzeLocal(repoPath, baseDomain)
+		if analyzeErr != nil && strings.Contains(analyzeErr.Error(), "unsupported stack") {
+			// generator.ErrUnsupportedStack is internal to the analyzer
+			// module; map via its stable message text.
+			return nil, fmt.Errorf("%w: %w", apps.ErrUnsupportedStackKind, analyzeErr)
+		}
+		return out, analyzeErr
+	}
+	appsH.Mount(router)
 }

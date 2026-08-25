@@ -37,7 +37,7 @@ type RevisionInput struct {
 }
 
 const cols = `revision, COALESCE(git_sha,''), COALESCE(build_id::text,''), image_digest,
-	config_version, secret_revision, appspec_version, created_at::text`
+	config_version, secret_revision, COALESCE(appspec_version,''), created_at::text`
 
 func scanRevision(row pgx.Row) (RevisionRow, error) {
 	var r RevisionRow
@@ -86,7 +86,7 @@ func (s *Store) SaveRevision(
 
 // revColsPrefixed qualifies revision columns inside join queries.
 const revColsPrefixed = `dr.revision, COALESCE(dr.git_sha,''), COALESCE(dr.build_id::text,''), dr.image_digest,
-	dr.config_version, dr.secret_revision, dr.appspec_version, dr.created_at::text`
+	dr.config_version, dr.secret_revision, COALESCE(dr.appspec_version,''), dr.created_at::text`
 
 // RollbackTarget selects the second-newest revision (RB-26 R1): the newest is
 // the live release, so rollback aims one step back.
@@ -106,4 +106,31 @@ func (s *Store) RollbackTarget(ctx context.Context, orgID, appID, deploymentID s
 		return RevisionRow{}, fmt.Errorf("%w: need at least two revisions", ErrNotEnoughRevisions)
 	}
 	return r, scanErr
+}
+
+// ListRevisions returns the deployment history for one app, newest first.
+func (s *Store) ListRevisions(ctx context.Context, orgID, appID string) ([]RevisionRow, error) {
+	if !validUUID(appID) {
+		return nil, ErrNotFound
+	}
+	rows, err := s.pool.Query(ctx,
+		`SELECT `+revColsPrefixed+` FROM deployment_revisions dr
+		 JOIN deployments dp ON dp.id = dr.deployment_id
+		 JOIN applications ap ON ap.id = dp.app_id
+		 WHERE ap.org_id = $1 AND ap.id = $2 AND ap.deleted_at IS NULL
+		 ORDER BY dp.id DESC, dr.revision DESC`, orgID, appID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []RevisionRow{}
+	for rows.Next() {
+		var r RevisionRow
+		if scanErr := rows.Scan(&r.Revision, &r.GitSHA, &r.BuildID, &r.ImageDigest,
+			&r.ConfigVersion, &r.SecretRevision, &r.AppSpecVersion, &r.CreatedAt); scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }

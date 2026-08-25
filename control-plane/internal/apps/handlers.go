@@ -125,6 +125,11 @@ func (h *Handlers) Mount(r chi.Router) {
 	r.Post("/v1/apps/{appId}/deployments", h.gate.Authenticated(
 		h.gate.RequireCap(rbac.CapAppDeploy,
 			h.gate.Idem(h.gate.Audited("app.deploy", h.handleDeploy)))))
+	r.Get("/v1/apps/{appId}/deployments", h.gate.RequireCap(rbac.CapAppRead,
+		h.gate.Authenticated(h.handleListDeployments)))
+	r.Post("/v1/apps/{appId}/rollback", h.gate.Authenticated(
+		h.gate.RequireCap(rbac.CapAppDeploy,
+			h.gate.Idem(h.gate.Audited("app.rollback", h.handleRollback)))))
 	r.Put("/v1/apps/{appId}/env", h.gate.Authenticated(
 		h.gate.RequireCap(rbac.CapSecretWrite,
 			h.gate.Idem(h.gate.Audited("secret.set", h.handlePutEnv)))))
@@ -301,8 +306,44 @@ func (h *Handlers) handlePutSpec(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleRollback serves POST /v1/apps/{appId}/rollback (RB-26 R1).
+func (h *Handlers) handleRollback(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgOrUnauthorized(w, r)
+	if !ok {
+		return
+	}
+	newRev, target, rbErr := h.store.RollbackLatest(r.Context(), orgID, chi.URLParam(r, "appId"))
+	if rbErr != nil {
+		if errors.Is(rbErr, ErrNotEnoughRevisions) {
+			writeProblem(w, http.StatusConflict, "NOT_ENOUGH_REVISIONS", rbErr.Error())
+			return
+		}
+		mapWriteErr(w, rbErr)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"rolled_back_to": target.Revision,
+		"new_revision":   newRev.Revision,
+	})
+}
+
 // handleAnalyze runs the repository analyzer and persists the derived
 // AppSpec as the app's current_spec override.
+
+// handleListDeployments serves GET /v1/apps/{appId}/deployments.
+func (h *Handlers) handleListDeployments(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgOrUnauthorized(w, r)
+	if !ok {
+		return
+	}
+	revs, listErr := h.store.ListRevisions(r.Context(), orgID, chi.URLParam(r, "appId"))
+	if listErr != nil {
+		mapWriteErr(w, listErr)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": revs})
+}
+
 func (h *Handlers) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 	orgID, ok := h.orgOrUnauthorized(w, r)
 	if !ok {
@@ -321,6 +362,10 @@ func (h *Handlers) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 	}
 	raw, analyzeErr := h.Analyze(in.RepoPath, h.baseDomain)
 	if analyzeErr != nil {
+		if errors.Is(analyzeErr, ErrUnsupportedStackKind) {
+			writeProblem(w, http.StatusBadRequest, "UNSUPPORTED_STACK", analyzeErr.Error())
+			return
+		}
 		mapWriteErr(w, fmt.Errorf("analyze: %w", analyzeErr))
 		return
 	}

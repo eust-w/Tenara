@@ -37,7 +37,10 @@ func tierOrFree(tier string) string {
 var (
 	ErrNotFound      = errors.New("not found")
 	ErrQuotaExceeded = errors.New("quota exceeded")
-	ErrConflict      = errors.New("conflict")
+	// ErrUnsupportedStackKind mirrors analyzer.ErrUnsupportedStack across the
+	// module boundary without importing the analyzer package.
+	ErrUnsupportedStackKind = errors.New("unsupported stack")
+	ErrConflict             = errors.New("conflict")
 )
 
 type App struct {
@@ -141,8 +144,9 @@ func (s *Store) classifyCreateRejection(ctx context.Context, orgID, name string)
 	}
 	// Tier-aware cap (RB§29): organizations.tier decides the ceiling.
 	var tier string
-	if tierErr := s.pool.QueryRow(ctx,
-		`SELECT tier FROM organizations WHERE id = $1`, orgID).Scan(&tier); tierErr != nil && !errors.Is(tierErr, pgx.ErrNoRows) {
+	tierErr := s.pool.QueryRow(ctx,
+		`SELECT tier FROM organizations WHERE id = $1`, orgID).Scan(&tier)
+	if tierErr != nil && !errors.Is(tierErr, pgx.ErrNoRows) {
 		return tierErr
 	}
 	maxApps := freeTierMaxApps
@@ -454,4 +458,36 @@ func (s *Store) InsertAuditRow(ctx context.Context, e AuditRow) error {
 		e.ActorType, e.ActorID, e.Agent, e.WorkspaceID,
 		e.Action, e.SourceIP, e.RequestID, e.Result)
 	return execErr
+}
+
+// RollbackLatest restores the previous revision of the app's newest
+// deployment as a fresh revision (RB-26 R1).
+func (s *Store) RollbackLatest(
+	ctx context.Context, orgID, appID string,
+) (RevisionRow, RevisionRow, error) {
+	var depID string
+	depErr := s.pool.QueryRow(ctx,
+		`SELECT dp.id FROM deployments dp
+		 JOIN applications ap ON ap.id = dp.app_id
+		 WHERE ap.org_id = $1 AND ap.id = $2 AND ap.deleted_at IS NULL
+		 ORDER BY dp.id DESC LIMIT 1`, orgID, appID).Scan(&depID)
+	if errors.Is(depErr, pgx.ErrNoRows) {
+		return RevisionRow{}, RevisionRow{}, fmt.Errorf("%w: no deployment yet", ErrNotEnoughRevisions)
+	}
+	if depErr != nil {
+		return RevisionRow{}, RevisionRow{}, depErr
+	}
+	target, tgtErr := s.RollbackTarget(ctx, orgID, appID, depID)
+	if tgtErr != nil {
+		return RevisionRow{}, RevisionRow{}, tgtErr
+	}
+	newRev, saveErr := s.SaveRevision(ctx, orgID, appID, depID, RevisionInput{
+		GitSHA:         target.GitSHA,
+		BuildID:        target.BuildID,
+		ImageDigest:    target.ImageDigest,
+		ConfigVersion:  target.ConfigVersion,
+		SecretRevision: target.SecretRevision,
+		AppSpecVersion: target.AppSpecVersion,
+	})
+	return newRev, target, saveErr
 }
