@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -36,6 +37,9 @@ type Handlers struct {
 	// Analyze abstracts the repository analyzer via DI; the returned JSON
 	// carries an "app_spec" member persisted as current_spec.
 	Analyze func(repoPath, baseDomain string) (json.RawMessage, error)
+
+	// LokiURL is the query API root; empty disables log retrieval.
+	LokiURL string
 	// Applier optionally materializes cluster objects (env-gated DI).
 	Applier    provision.Applier
 	store      *Store
@@ -135,6 +139,10 @@ func (h *Handlers) Mount(r chi.Router) {
 	r.Post("/v1/apps/{appId}/rollback", h.gate.Authenticated(
 		h.gate.RequireCap(rbac.CapAppDeploy,
 			h.gate.Idem(h.gate.Audited("app.rollback", h.handleRollback)))))
+	r.Get("/v1/apps/{appId}/logs", h.gate.RequireCap(rbac.CapAppRead,
+		h.gate.Authenticated(h.handleListLogs)))
+	r.Get("/v1/apps/{appId}/diagnostics", h.gate.RequireCap(rbac.CapAppRead,
+		h.gate.Authenticated(h.handleDiagnostics)))
 	r.Put("/v1/apps/{appId}/env", h.gate.Authenticated(
 		h.gate.RequireCap(rbac.CapSecretWrite,
 			h.gate.Idem(h.gate.Audited("secret.set", h.handlePutEnv)))))
@@ -576,6 +584,82 @@ func (h *Handlers) handleRequestDatabase(w http.ResponseWriter, r *http.Request)
 // applyBridgeBestEffort materializes the app's AppEnv when a cluster
 // bridge is configured; failures are logged and never fail the API call
 // (convergence is eventual by design).
+
+// handleListLogs serves GET /v1/apps/{appId}/logs. When Loki is not
+// configured it degrades to an empty result set rather than failing.
+func (h *Handlers) handleListLogs(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgOrUnauthorized(w, r)
+	if !ok {
+		return
+	}
+	appID := chi.URLParam(r, "appId")
+	if _, getAppErr := h.store.GetApp(r.Context(), orgID, appID); getAppErr != nil {
+		mapWriteErr(w, getAppErr)
+		return
+	}
+
+	if h.LokiURL == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"items": []any{}, "source": "none"})
+		return
+	}
+
+	q := url.Values{}
+	if src := r.URL.Query().Get("source"); src != "" {
+		q.Set("source", src)
+	}
+	if lim := r.URL.Query().Get("limit"); lim != "" {
+		q.Set("limit", lim)
+	}
+	full := h.LokiURL + "?" + q.Encode()
+
+	httpClient := &http.Client{Timeout: 5 * time.Second}
+	resp, fetchErr := httpClient.Get(full)
+	if fetchErr != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"items": []any{}, "source": "loki-unreachable"})
+		return
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			_ = closeErr
+		}
+	}()
+
+	var result map[string]any
+	if decodeErr := json.NewDecoder(resp.Body).Decode(&result); decodeErr != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"items": []any{}, "source": "loki-parse-error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+// handleDiagnostics serves GET /v1/apps/{appId}/diagnostics: returns a
+// deployment-state summary so agents can triage without kubectl.
+func (h *Handlers) handleDiagnostics(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgOrUnauthorized(w, r)
+	if !ok {
+		return
+	}
+	appID := chi.URLParam(r, "appId")
+	app, appErr := h.store.GetApp(r.Context(), orgID, appID)
+	if appErr != nil {
+		mapWriteErr(w, appErr)
+		return
+	}
+	revisions, listErr := h.store.ListRevisions(r.Context(), orgID, appID)
+	if listErr != nil {
+		revisions = []RevisionRow{}
+	}
+	var latestState string
+	if len(revisions) > 0 {
+		latestState = revisions[0].ImageDigest
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"app_id":         app.ID,
+		"latest_digest":  latestState,
+		"revision_count": len(revisions),
+	})
+}
+
 func (h *Handlers) applyBridgeBestEffort(ctx context.Context, orgID, appIDParam, image, gitURL, gitSHA string) {
 	if h.Applier == nil {
 		return

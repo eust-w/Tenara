@@ -173,5 +173,6 @@ func mountPlatformAPI(
 	if getenvOr("TENARA_CLUSTER_BRIDGE", "") == "kubectl" {
 		appsH.Applier = provision.KubectlApplier{}
 	}
+	appsH.LokiURL = os.Getenv("LOKI_URL")
 	appsH.Mount(router)
 }

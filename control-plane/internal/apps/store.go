@@ -476,6 +476,9 @@ func (s *Store) InsertAuditRow(ctx context.Context, e AuditRow) error {
 func (s *Store) RollbackLatest(
 	ctx context.Context, orgID, appID string,
 ) (RevisionRow, RevisionRow, error) {
+	if !validUUID(appID) {
+		return RevisionRow{}, RevisionRow{}, ErrNotFound
+	}
 	var depID string
 	depErr := s.pool.QueryRow(ctx,
 		`SELECT dp.id FROM deployments dp
